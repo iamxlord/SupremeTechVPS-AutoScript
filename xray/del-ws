@@ -1,0 +1,67 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          DELETE VMESS ACCOUNT            ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CHECK & LIST USERS
+if [[ $(grep -c "// ### " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No VMess clients found!${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-vmess.sh
+    exit 1
+fi
+
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// ### " "$CONFIG" |
+awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+
+# 2. IDENTIFY USER
+user=$(grep -E "// ### " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
+exp=$(grep -E "// ### " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    sleep 1
+    del-ws
+    exit 1
+fi
+
+echo -e " Deleting User : ${RED}$user${NC}"
+
+# 3. ATOMIC DELETION (The Fix)
+# A. Delete the Tracking Tag (Matches // ### user exp)
+sed -i "/\/\/ ### $user $exp/d" "$CONFIG"
+
+# B. Delete the User Data Block
+# Safely removes the line containing the user's email
+sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+
+# C. Clean Empty Lines
+sed -i '/^\s*$/d' "$CONFIG"
+
+# 4. CLEANUP & RESTART
+rm -f /etc/xray/limit/vmess/$user
+systemctl restart xray
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        VMESS ACCOUNT DELETED             ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}$user${NC}"
+echo -e " Status      : ${RED}DELETED${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vmess.sh

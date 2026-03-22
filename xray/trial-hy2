@@ -1,0 +1,64 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain 2>/dev/null)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        GENERATE TRIAL HYSTERIA2          ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GENERATE USER
+rand=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+user="TRIAL-$rand"
+masaaktif=1
+limit=1
+
+# Check Duplicate
+if grep -q "\"email\": \"$user\"" "$CONFIG"; then
+    rand2=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+    user="TRIAL-$rand2"
+fi
+
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display="24 Hours (Trial)"
+
+# 2. INJECT USER (TARGETING // #hy2)
+sed -i "s|// #hy2|,\\
+          { \"password\": \"$uuid\", \"email\": \"$user\" }\\
+          // #hy2\\
+          // #hy $user $exp|g" $CONFIG
+
+# Save Limit
+mkdir -p /etc/xray/limit/hysteria
+echo "$limit" > /etc/xray/limit/hysteria/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 3. GENERATE LINK
+hy2_link="hysteria2://${uuid}@${domain}:443/?sni=${domain}&insecure=1#${user}"
+
+# 4. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        TRIAL HYSTERIA2 CREATED           ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username     : ${GREEN}$user${NC}"
+echo -e " Password     : ${GREEN}$uuid${NC}"
+echo -e " Protocol     : ${GREEN}UDP (QUIC)${NC}"
+echo -e " Max Login    : ${GREEN}$limit Device(s)${NC}"
+echo -e " Expired On   : ${GREEN}$exp_display${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK HYSTERIA2 :${NC}"
+echo -e "${GREEN}$hy2_link${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-hy.sh

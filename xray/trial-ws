@@ -1,0 +1,77 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        GENERATE TRIAL ACCOUNT            ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GENERATE RANDOM USER & EXPIRY
+# Generates a user like "TRIAL-a1b2"
+rand=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+user="TRIAL-$rand"
+
+# Set Expiry to 1 Day (24 Hours)
+masaaktif=1
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display="24 Hours (Trial)"
+
+# Check Duplicate (Just in case)
+if grep -q "\"email\": \"$user\"" "$CONFIG"; then
+    rand2=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+    user="TRIAL-$rand2"
+fi
+
+# Limit Logic (Hardcoded to 1 for trials)
+limit=1
+
+# 2. PROCESS DATA
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+# 3. INJECT USER (NEVERMORE LOGIC)
+sed -i '/\/\/ #vmess$/a\// ### '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": 0,"email": "'""$user""'"' "$CONFIG"
+
+# Set Limit File (So it counts)
+mkdir -p /etc/xray/limit/vmess
+echo "$limit" > /etc/xray/limit/vmess/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 4. GENERATE LINKS
+json_tls='{"add":"'$domain'","aid":"0","host":"'$domain'","id":"'$uuid'","net":"ws","path":"/vmess","port":"443","ps":"'$user'","scy":"auto","sni":"'$domain'","tls":"tls","type":"","v":"2"}'
+link_tls="vmess://$(echo $json_tls | base64 -w 0)"
+
+json_none='{"add":"'$domain'","aid":"0","host":"'$domain'","id":"'$uuid'","net":"ws","path":"/vmess","port":"80","ps":"'$user'","scy":"auto","sni":"","tls":"none","type":"","v":"2"}'
+link_none="vmess://$(echo $json_none | base64 -w 0)"
+
+# 5. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        TRIAL ACCOUNT CREATED             ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Remarks     : ${GREEN}${user}${NC}"
+echo -e " Domain      : ${GREEN}${domain}${NC}"
+echo -e " User ID     : ${GREEN}${uuid}${NC}"
+echo -e " Expired On  : ${GREEN}${exp_display}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK TLS    :${NC}"
+echo -e "${GREEN}${link_tls}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK NO-TLS :${NC}"
+echo -e "${GREEN}${link_none}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vmess.sh

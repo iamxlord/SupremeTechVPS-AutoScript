@@ -1,0 +1,161 @@
+#!/bin/bash
+# --- MR. X Refined Premium Menu (Enhanced Edition) ---
+
+# Color Settings
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+YELLOW='\033[0;33m'
+ORANGE='\033[0;33m'
+NC='\033[0m'
+
+# System Info Gathering
+CONFIG="/usr/local/etc/xray/config.json"
+MYIP=$(curl -sS ifconfig.me)
+DOMAIN=$(cat /etc/xray/domain 2>/dev/null || echo "Not Set")
+NS_DOMAIN=$(cat /etc/xray/nsdomain 2>/dev/null || echo "Not Set")
+OS_NAME=$(grep -w "PRETTY_NAME" /etc/os-release | cut -d= -f2 | tr -d '"')
+UPTIME=$(uptime -p | cut -d " " -f 2-10)
+DATE=$(date +"%d-%m-%Y | %H:%M:%S")
+
+# --- CPU & RAM ---
+cpu_idle=$(top -bn1 | grep "Cpu(s)" | grep -Po "[0-9.]+ *(?=id)")
+cpu_usage=$(echo "$cpu_idle" | awk '{printf "%.1f%%", 100 - $1}')
+RAM_TOTAL=$(free -m | grep Mem | awk '{print $2}')
+RAM_USED=$(free -m | grep Mem | awk '{print $3}')
+RAM_FREE=$(free -m | grep Mem | awk '{print $4}')
+
+# --- REBOOT TIME ---
+AUTOREB=$(crontab -l 2>/dev/null | grep 'reboot' | awk '{print $2":"$1}')
+if [[ -z "$AUTOREB" ]]; then
+    REBOOT_TIME="Not Set"
+else
+    REBOOT_TIME="${AUTOREB} (Daily)"
+fi
+
+# --- REAL-TIME COUNTERS ---
+SSH_COUNT=$(awk -F: '$3 >= 1000 && $1 != "nobody" && ($7 == "/bin/false" || $7 == "/usr/sbin/nologin" || $7 == "/bin/true") {print $1}' /etc/passwd | wc -l)
+VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null || echo "0")
+VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null || echo "0")
+TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null || echo "0")
+SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null || echo "0")
+HY2_COUNT=$(grep -c "// #hy " "$CONFIG" 2>/dev/null || echo "0")
+
+# Service Check Function
+status_check() {
+    if systemctl is-active --quiet "$1"; then
+        echo -e "${GREEN}ON${NC}"
+    else
+        echo -e "${RED}OFF${NC}"
+    fi
+}
+
+# --- BANDWIDTH MONITOR ---
+IFACE=$(ip route get 1.1.1.1 | awk '{print $5; exit}')
+CURRENT_MONTH=$(date +%Y-%m)
+RX_TODAY=$(vnstat -i $IFACE 2>/dev/null | grep "today" | awk '{print $2" "$3}' || echo "0 B")
+RX_YEST=$(vnstat -i $IFACE 2>/dev/null | grep "yesterday" | awk '{print $2" "$3}' || echo "0 B")
+RX_MONTH=$(vnstat -i $IFACE -m 2>/dev/null | grep "$CURRENT_MONTH" | awk '{print $8" "$9}' || echo "0 B")
+
+clear
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}                     VPS INFORMATION                  ${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "   Server Uptime       = $UPTIME"
+echo -e "   Current Time        = $DATE"
+echo -e "   Operating System    = $OS_NAME"
+echo -e "   Current Domain      = $DOMAIN"
+echo -e "   NS Domain           = $NS_DOMAIN"
+echo -e "   Total Ram           = $RAM_TOTAL MB"
+echo -e "   Total Used Ram      = $RAM_USED MB"
+echo -e "   Total Free Ram      = $RAM_FREE MB"
+echo -e "   CPU Usage           = $cpu_usage"
+echo -e "   Time Reboot VPS     = $REBOOT_TIME"
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}                SUPREME TECH VPN MANAGER             ${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "    Use Core        :  Xray-Core 2023"
+echo -e "    IP-VPS          :  $MYIP"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "    SUPREMETECH AUTOSCRIPT"
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "  SSH : ${GREEN}$SSH_COUNT${NC}     VMESS : ${GREEN}$VMESS_COUNT${NC}     VLESS : ${GREEN}$VLESS_COUNT${NC}"
+echo -e "  TRJ : ${GREEN}$TROJAN_COUNT${NC}     SS-WS : ${GREEN}$SS_COUNT${NC}     HYST2 : ${GREEN}$HY2_COUNT${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "      SSH : $(status_check ssh)  NGINX : $(status_check nginx)   XRAY : $(status_check xray)"
+echo -e "        DROPBEAR : $(status_check dropbear)  SSH-WS : $(status_check ssh)"
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "     ${GREEN}[01]${NC} SSH Menu          ${GREEN}[08]${NC} SETTING Menu"
+echo -e "     ${GREEN}[02]${NC} VMESS Menu        ${GREEN}[09]${NC} BACKUP"
+echo -e "     ${GREEN}[03]${NC} VLESS Menu        ${GREEN}[10]${NC} ADD-HOST DOMAIN"
+echo -e "     ${GREEN}[04]${NC} TROJAN Menu       ${GREEN}[11]${NC} CHECK RUNNING"
+echo -e "     ${GREEN}[05]${NC} SHADOWSOCKS Menu  ${GREEN}[12]${NC} SETUP REBOOT"
+echo -e "     ${GREEN}[06]${NC} HYSTERIA2 Menu    ${GREEN}[13]${NC} NS DOMAIN"
+echo -e "     ${GREEN}[07]${NC} TRIAL Accounts    ${GREEN}[00]${NC} EXIT"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}                MONITORING BANDWIDTH                  ${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "   BANDWITH USED TODAY        = ${GREEN}$RX_TODAY${NC}"
+echo -e "   BANDWITH USED YESTERDAY    = ${GREEN}$RX_YEST${NC}"
+echo -e "   TOTAL BANDWITH THIS MONTH  = ${GREEN}$RX_MONTH${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e ""
+read -p " Select menu : " opt
+case $opt in
+    1|01) menu-ssh.sh ;;
+    2|02) menu-vmess.sh ;;
+    3|03) menu-vless.sh ;;
+    4|04) menu-trojan.sh ;;
+    5|05) menu-ss.sh ;;
+    6|06) menu-hy.sh ;;
+    7|07)
+          clear
+          echo -e "${YELLOW}Select Trial Protocol:${NC}"
+          echo "1. SSH"
+          echo "2. VMESS"
+          echo "3. VLESS"
+          echo "4. TROJAN"
+          echo "5. SHADOWSOCKS"
+          echo "6. HYSTERIA2"
+          echo ""
+          read -p ">> " trl
+          case $trl in
+            1) trial ;; 
+            2) trial-ws ;; 
+            3) trial-vless ;; 
+            4) trial-tr ;;
+            5) trial-ss ;;
+            6) trial-hy2 ;;
+            *) echo "Invalid"; sleep 1; menu ;;
+          esac ;;
+    8|08) menu-set.sh ;;
+    9|09) backup.sh ;;
+    10) add-host.sh ;;
+    11) running.sh ;;
+    12) 
+        read -p "Set Reboot Hour (0-23): " hr
+        if [[ "$hr" =~ ^[0-9]+$ ]] && [ "$hr" -ge 0 ] && [ "$hr" -le 23 ]; then
+            echo "0 $hr * * * root reboot" > /etc/cron.d/reboot
+            service cron restart
+            echo -e "${GREEN}Auto-reboot set to $hr:00 daily${NC}"
+            sleep 2
+        else
+            echo -e "${RED}Invalid hour! Please enter 0-23${NC}"
+            sleep 2
+        fi
+        menu ;;
+    13) 
+        read -p "Input NS Domain: " nsdom
+        if [[ ! -z "$nsdom" ]]; then
+            echo "$nsdom" > /etc/xray/nsdomain
+            echo -e "${GREEN}NS Domain set to: $nsdom${NC}"
+        else
+            echo -e "${RED}Invalid input!${NC}"
+        fi
+        sleep 2
+        menu ;;
+    0|00) exit 0 ;;
+    *) echo "Invalid Option"; sleep 1; menu ;;
+esac

@@ -1,0 +1,93 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      SERVER HEALTH & STATUS CHECK        ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CHECK DOMAIN
+if [[ -s /etc/xray/domain ]]; then
+    DOMAIN=$(cat /etc/xray/domain)
+    echo -e " Domain      : ${GREEN}[OK]${NC} $DOMAIN"
+else
+    echo -e " Domain      : ${RED}[FAIL]${NC} Missing /etc/xray/domain"
+fi
+
+# 2. CHECK XRAY CONFIG
+if [[ -s /usr/local/etc/xray/config.json ]]; then
+    echo -e " Xray Config : ${GREEN}[OK]${NC} Found"
+else
+    echo -e " Xray Config : ${RED}[FAIL]${NC} Missing config.json"
+fi
+
+# 3. CHECK SERVICES
+# Check Xray
+if systemctl is-active --quiet xray; then
+    echo -e " Xray Service: ${GREEN}[RUNNING]${NC}"
+else
+    echo -e " Xray Service: ${RED}[STOPPED]${NC} (Check logs!)"
+fi
+
+# Check SSH
+if systemctl is-active --quiet ssh; then
+    echo -e " SSH Service : ${GREEN}[RUNNING]${NC}"
+else
+    echo -e " SSH Service : ${RED}[STOPPED]${NC}"
+fi
+
+# 4. CHECK CRITICAL SCRIPTS
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " SCRIPT INTEGRITY CHECK:"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+check_script() {
+    if [[ -x /usr/bin/$1 ]]; then
+        echo -e " $1 : ${GREEN}[OK]${NC}"
+    else
+        echo -e " $1 : ${RED}[MISSING/BAD PERM]${NC}"
+    fi
+}
+
+# SSH Suite
+check_script "usernew"
+check_script "renew"
+check_script "cek"
+
+# VMess Suite
+check_script "add-ws"
+check_script "renew-ws"
+check_script "del-ws"
+
+# VLESS Suite
+check_script "add-vless"
+check_script "renew-vless"
+check_script "del-vless"
+
+# Trojan Suite
+check_script "add-tr"
+check_script "renew-tr"
+check_script "del-tr"
+
+# Autokill
+check_script "tendang"
+
+# 5. CHECK LIMIT DIRECTORIES
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " DATABASE CHECK:"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ -d /etc/xray/limit/vmess ]]; then echo -e " VMess Limit DB  : ${GREEN}[OK]${NC}"; else echo -e " VMess Limit DB  : ${RED}[MISSING]${NC}"; fi
+if [[ -d /etc/xray/limit/vless ]]; then echo -e " VLESS Limit DB  : ${GREEN}[OK]${NC}"; else echo -e " VLESS Limit DB  : ${RED}[MISSING]${NC}"; fi
+if [[ -d /etc/xray/limit/trojan ]]; then echo -e " Trojan Limit DB : ${GREEN}[OK]${NC}"; else echo -e " Trojan Limit DB : ${RED}[MISSING]${NC}"; fi
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " ${GREEN}Scan Complete.${NC}"
+read -n 1 -s -r -p "Press any key to exit"
+clear

@@ -1,0 +1,70 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          DELETE VLESS ACCOUNT            ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CHECK & LIST USERS
+if [[ $(grep -c "// #vl " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No VLESS clients found!${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-vless.sh
+    exit 1
+fi
+
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// #vl " "$CONFIG" |
+awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+
+# 2. IDENTIFY USER
+# Extract exact username and expiry to match the tag line perfectly
+user=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
+exp=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    sleep 1
+    del-vless
+    exit 1
+fi
+
+echo -e " Deleting User : ${RED}$user${NC}"
+
+# 3. ATOMIC DELETION (The Fix)
+# Instead of deleting a range (which can fail), we delete specific lines.
+# A. Delete the Tracking Tag
+sed -i "/\/\/ #vl $user $exp/d" "$CONFIG"
+
+# B. Delete the User Data Block
+# We search for the email line. Because your add-vless script puts the 
+# "},{"id":... glue on the same line, deleting this line safely closes the chain.
+sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+
+# C. Clean Empty Lines (Hygiene)
+sed -i '/^\s*$/d' "$CONFIG"
+
+# 4. CLEANUP & RESTART
+rm -f /etc/xray/limit/vless/$user
+systemctl restart xray
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        VLESS ACCOUNT DELETED             ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}$user${NC}"
+echo -e " Status      : ${RED}DELETED${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vless.sh

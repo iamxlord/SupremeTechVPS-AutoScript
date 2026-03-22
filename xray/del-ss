@@ -1,0 +1,31 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+ORANGE='\033[0;33m'
+
+read -p " Enter Shadowsocks Username to Delete : " user
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Username cannot be empty.${NC}"
+    exit 1
+fi
+
+echo -e " Deleting User : ${RED}$user${NC}"
+
+# 1. DELETE THE USER
+sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+sed -i "/\/\/ #ss $user /d" "$CONFIG"
+
+# 2. SELF-HEALING LOGIC
+sed -i '/^\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+# Clean trailing comma before the #ss-ws tag
+sed -i -e '/},$/ { N; /\/\/ #ss-ws/s/},/}/; P; D; }' "$CONFIG"
+
+rm -f /etc/xray/limit/shadowsocks/$user
+systemctl restart xray
+echo -e "${GREEN}Shadowsocks Account Deleted Successfully!${NC}"

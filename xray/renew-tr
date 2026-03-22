@@ -1,0 +1,81 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        RENEW TROJAN ACCOUNT          ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CHECK & LIST USERS
+if [[ $(grep -c "// #tr " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No Trojan clients found!${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-trojan.sh
+    exit 1
+fi
+
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# FIX: Use AWK instead of CUT to handle indentation correctly
+# $3 is the Username, $4 is the Expiry Date
+grep -E "// #tr " "$CONFIG" | awk '{print $3, $4}' | sort | uniq | awk '{printf " %-4s %-13s %-10s\n", NR".", $1, $2}'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " CLIENT_NUMBER
+
+# 2. IDENTIFY USER
+# Match the selection logic to the display logic
+user=$(grep -E "// #tr " "$CONFIG" | awk '{print $3}' | sort | uniq | sed -n "${CLIENT_NUMBER}p")
+exp=$(grep -E "// #tr " "$CONFIG" | grep "$user" | awk '{print $4}' | head -n 1)
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    sleep 1
+    renew-tr
+    exit 1
+fi
+
+# 3. INPUT DAYS
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Add Days      : " days
+[[ -z "$days" ]] && days=30
+
+# 4. SMART DATE LOGIC
+now=$(date +%Y-%m-%d)
+d1=$(date -d "$exp" +%s)
+d2=$(date -d "$now" +%s)
+
+if [[ $d1 -ge $d2 ]]; then
+    new_exp=$(date -d "$exp + $days days" +"%Y-%m-%d")
+else
+    new_exp=$(date -d "$days days" +"%Y-%m-%d")
+fi
+
+# 5. APPLY UPDATE
+# Use | delimiter to avoid slash confusion
+sed -i "s|// #tr $user $exp|// #tr $user $new_exp|g" "$CONFIG"
+
+# Restart Service
+systemctl restart xray
+
+# 6. SUCCESS BANNER
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        TROJAN USER RENEWED           ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}${user}${NC}"
+echo -e " Days Added  : ${GREEN}${days} Days${NC}"
+echo -e " Old Expiry  : ${RED}${exp}${NC}"
+echo -e " New Expiry  : ${GREEN}${new_exp}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-trojan.sh

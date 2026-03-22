@@ -1,0 +1,66 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          AUTOKILL SETUP (SSH)            ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Check Current Status
+if [[ -f /etc/cron.d/tendang ]]; then
+    STATUS="${GREEN}ACTIVE${NC}"
+else
+    STATUS="${RED}INACTIVE${NC}"
+fi
+
+echo -e " Current Status: $STATUS"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " [1]  AutoKill Every 5 Minutes"
+echo -e " [2]  AutoKill Every 10 Minutes"
+echo -e " [3]  AutoKill Every 15 Minutes"
+echo -e " [4]  Turn Off AutoKill"
+echo -e " [x]  Back to Menu"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Select Option : " req
+
+case $req in
+    1)
+        echo "*/5 * * * * root /usr/bin/tendang" > /etc/cron.d/tendang
+        echo -e "${GREEN}AutoKill enabled (Every 5 Mins).${NC}"
+        service cron restart
+        sleep 2
+        ;;
+    2)
+        echo "*/10 * * * * root /usr/bin/tendang" > /etc/cron.d/tendang
+        echo -e "${GREEN}AutoKill enabled (Every 10 Mins).${NC}"
+        service cron restart
+        sleep 2
+        ;;
+    3)
+        echo "*/15 * * * * root /usr/bin/tendang" > /etc/cron.d/tendang
+        echo -e "${GREEN}AutoKill enabled (Every 15 Mins).${NC}"
+        service cron restart
+        sleep 2
+        ;;
+    4)
+        rm -f /etc/cron.d/tendang
+        echo -e "${RED}AutoKill turned off.${NC}"
+        service cron restart
+        sleep 2
+        ;;
+    x)
+        menu-ssh.sh
+        ;;
+    *)
+        echo -e "${RED}Invalid Option${NC}"
+        sleep 1
+        autokill
+        ;;
+esac
+menu-ssh.sh

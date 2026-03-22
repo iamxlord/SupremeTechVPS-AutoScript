@@ -1,0 +1,73 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      CREATE TROJAN ACCOUNT (WS)   ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GET USER INPUT
+while true; do
+    read -p " Username   : " user
+    if [[ -z "$user" ]]; then
+        echo -e "${RED}Error: Username cannot be empty!${NC}"
+    elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
+    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then
+        echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
+    else
+        break
+    fi
+done
+
+read -p " Expired    : " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
+read -p " Max Login  : " limit
+[[ -z "$limit" ]] && limit=1
+
+# 2. PROCESS DATA
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
+
+# 3. INJECT USER (TARGETING // #trojan-ws)
+# We replace the tag with: , { user_data } \n // #trojan-ws
+sed -i "s|// #trojan-ws|,\\
+          { \"password\": \"$uuid\", \"email\": \"$user\" }\\
+          // #trojan-ws\\
+          // #tr $user $exp|g" $CONFIG
+
+# Save Limit
+mkdir -p /etc/xray/limit/trojan
+echo "$limit" > /etc/xray/limit/trojan/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 4. GENERATE LINK (WS ONLY)
+# Note: Port 443 is correct (Nginx handles the TLS termination)
+trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
+
+# 5. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      PREMIUM TROJAN ACCOUNT       ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username     : ${GREEN}$user${NC}"
+echo -e " Key/UUID     : ${GREEN}$uuid${NC}"
+echo -e " Max Login    : ${GREEN}$limit Device(s)${NC}"
+echo -e " Expired On   : ${GREEN}$exp_display${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK TLS (WS):${NC}"
+echo -e "${GREEN}$trojan_ws${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-trojan.sh

@@ -1,0 +1,59 @@
+#!/bin/bash
+# --- TheTechSavage Premium User List (Filtered) ---
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}                LIST MEMBER SSH                   ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+printf "%-15s %-15s %-15s\n" "USERNAME" "EXP DATE" "STATUS"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+count=0
+
+# Scan /etc/passwd
+# Format: username:password:UID:GID:info:home:shell
+while IFS=: read -r username password uid gid info home shell; do
+    # FILTER: Only show users with UID >= 1000 AND restricted shell
+    # This hides system users like bin, daemon, sys, etc.
+    if [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then
+        if [[ "$shell" == "/bin/false" || "$shell" == "/usr/sbin/nologin" || "$shell" == "/bin/true" ]]; then
+            
+            # Get Expiration
+            exp_raw=$(chage -l "$username" | grep "Account expires" | cut -d: -f2)
+            
+            if [[ "$exp_raw" == *"never"* ]]; then
+                exp_display="Lifetime"
+                status="${GREEN}ACTIVE${NC}"
+            else
+                # Check formatting
+                exp_date=$(date -d "$exp_raw" "+%d-%b-%Y" 2>/dev/null)
+                exp_display=$exp_date
+                
+                exp_sec=$(date -d "$exp_raw" +%s 2>/dev/null)
+                now_sec=$(date +%s)
+                
+                if [[ $exp_sec -ge $now_sec ]]; then
+                    status="${GREEN}ACTIVE${NC}"
+                else
+                    status="${RED}EXPIRED${NC}"
+                fi
+            fi
+            
+            # Use %b to interpret the color codes correctly
+            printf "%-15s %-15s %b\n" "$username" "$exp_display" "$status"
+            ((count++))
+        fi
+    fi
+done < /etc/passwd
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " TOTAL USERS : $count"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ssh.sh

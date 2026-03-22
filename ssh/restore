@@ -1,0 +1,46 @@
+#!/bin/bash
+# --- TheTechSavage Smart Restore (Cross-Cloud Compatible) ---
+
+clear
+echo -e "\033[0;32m=== SMART RESTORE (ANY VPS) ===\033[0m"
+read -p "Paste Backup Link: " url
+
+if [[ -z "$url" ]]; then exit 1; fi
+
+cd /root
+wget -O backup.zip "$url"
+if [ ! -f "backup.zip" ]; then echo "Download Failed!"; exit 1; fi
+
+unzip -o backup.zip
+cd /root/backup
+
+echo -e "\033[0;33m[+] Restoring VPN Users (Smart Append)...\033[0m"
+
+# 1. Restore SSH Users (Only VPN Users, Ignore System Users)
+# We filter users with UID >= 1000 and shell /bin/false (standard for VPN)
+awk -F: '$3 >= 1000 && $7 == "/bin/false" {print $1}' passwd | while read user; do
+    if id "$user" &>/dev/null; then
+        echo "User $user already exists. Skipping."
+    else
+        echo "Restoring User: $user"
+        # Extract line from backup and append to current system
+        grep -w "^$user" passwd >> /etc/passwd
+        grep -w "^$user" shadow >> /etc/shadow
+        grep -w "^$user" group >> /etc/group
+        grep -w "^$user" gshadow >> /etc/gshadow
+    fi
+done
+
+# 2. Restore Xray Data (Config + Limits)
+# We DO NOT restore 'domain' file to avoid breaking new server DNS
+cp -r xray/*.json /etc/xray/
+cp xray/limit /etc/xray/ 2>/dev/null
+
+# 3. Restart Services to apply changes
+systemctl restart dropbear
+systemctl restart ssh
+systemctl restart xray
+
+echo -e "\033[0;32m[+] Restore Complete! Users migrated successfully.\033[0m"
+rm -rf /root/backup
+rm -f /root/backup.zip

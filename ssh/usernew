@@ -1,0 +1,89 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}       CREATE SSH / PROXY ACCOUNT         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. Input Details
+while true; do
+    read -p "Username   : " Login
+    if [[ -z "$Login" ]]; then
+        echo -e "${RED}Error: Username cannot be empty!${NC}"
+    elif [[ ! "$Login" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
+    elif getent passwd "$Login" > /dev/null 2>&1; then
+        echo -e "${RED}Error: User '$Login' already exists! Try another.${NC}"
+    else
+        break
+    fi
+done
+
+read -p "Password   : " Pass
+read -p "Max Login  : " limit
+read -p "Expired    : " masaaktif
+
+[[ -z "$masaaktif" ]] && masaaktif=30
+
+# 2. System Data
+IP=$(curl -sS ifconfig.me)
+Domain=$(cat /etc/xray/domain 2>/dev/null || echo "IP-Only")
+NS=$(cat /etc/xray/nsdomain 2>/dev/null || echo "Not Set")
+PubKey=$(cat /etc/slowdns/server.pub 2>/dev/null || echo "Not Set")
+
+exp_date=$(date -d "$masaaktif days" +"%b %d, %Y")
+expe=$(date -d "$masaaktif days" +"%Y-%m-%d")
+
+# 3. Create User
+useradd -e "$expe" -s /bin/false -M "$Login"
+echo -e "$Pass\n$Pass\n" | passwd "$Login" &> /dev/null
+
+# 4. Save Limit
+mkdir -p /etc/xray/limit
+echo "$limit" > /etc/xray/limit/$Login
+
+# 5. Print Premium Receipt
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      PREMIUM SSH & PROXY ACCOUNT         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "Username     : ${GREEN}$Login${NC}"
+echo -e "Password     : ${GREEN}$Pass${NC}"
+echo -e "Max Login    : ${GREEN}$limit Device(s)${NC}"
+echo -e "Expired On   : ${GREEN}$exp_date${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "🌐 IP        : $IP"
+echo -e "🏠 Host      : $Domain"
+echo -e "📡 NS        : $NS"
+echo -e "🔑 PubKey    : $NS_PUBKEY"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}PORTS:${NC}"
+echo -e "SSH/Dropbear : 22, 109, 143"
+echo -e "SSH-WS       : 80"
+echo -e "SSH-WSS      : 443"
+echo -e "Univ. Proxy  : 8080"
+echo -e "SSL/TLS      : 447, 777"
+echo -e "SlowDNS      : 53, 5300"
+echo -e "OVPN         : http://${Domain}:85/client-tcp.ovpn"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}CONNECTION STRINGS:${NC}"
+echo -e "SSH-80       : ${Domain}:80@${Login}:${Pass}"
+echo -e "SSH-443      : ${Domain}:443@${Login}:${Pass}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}PAYLOAD EXAMPLES:${NC}"
+echo -e "\n*WebSocket (WS/WSS):*"
+echo -e "GET / HTTP/1.1[crlf]Host: ${Domain}[crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "\n*WebSocket Secure (WSS):*"
+echo -e "GET wss://bug.com [protocol][crlf]Host: ${Domain}[crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "\n*Custom Proxy / Bug Fronting (Port 8080):*"
+echo -e "GET http://${Domain} HTTP/1.1[crlf]Host: bug.com[crlf][crlf]"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu "
+echo ""
+menu-ssh.sh

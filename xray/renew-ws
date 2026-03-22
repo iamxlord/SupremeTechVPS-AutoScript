@@ -1,0 +1,80 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          RENEW VMESS USER                ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CHECK & LIST USERS (Looking for // ###)
+if [[ $(grep -c "// ### " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No VMess clients found!${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-vmess.sh
+    exit 1
+fi
+
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// ### " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " CLIENT_NUMBER
+
+# 2. IDENTIFY USER & CURRENT EXPIRY
+user=$(grep -E "// ### " "$CONFIG" | awk -v line="$CLIENT_NUMBER" 'NR==line {print $3}')
+exp=$(grep -E "// ### " "$CONFIG" | awk -v line="$CLIENT_NUMBER" 'NR==line {print $4}')
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    sleep 1
+    renew-ws.sh
+    exit 1
+fi
+
+# 3. INPUT DAYS
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Add Days      : " days
+if [[ -z "$days" ]]; then
+    days=30 # Default to 30
+fi
+
+# 4. SMART DATE LOGIC
+# If expired, start from TODAY. If active, add to EXISTING date.
+now=$(date +%Y-%m-%d)
+d1=$(date -d "$exp" +%s)
+d2=$(date -d "$now" +%s)
+
+if [[ $d1 -ge $d2 ]]; then
+    new_exp=$(date -d "$exp + $days days" +"%Y-%m-%d")
+else
+    new_exp=$(date -d "$days days" +"%Y-%m-%d")
+fi
+
+# 5. APPLY UPDATE (NEVERMORE LOGIC)
+# Explicitly matching // ### ensures we don't break the JSON format
+sed -i "s/// ### $user $exp/// ### $user $new_exp/g" "$CONFIG"
+
+# Restart Service
+systemctl restart xray
+
+# 6. SUCCESS BANNER
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        VMESS USER RENEWED                ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}${user}${NC}"
+echo -e " Days Added  : ${GREEN}${days} Days${NC}"
+echo -e " Old Expiry  : ${RED}${exp}${NC}"
+echo -e " New Expiry  : ${GREEN}${new_exp}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vmess.sh

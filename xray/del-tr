@@ -1,0 +1,58 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+ORANGE='\033[0;33m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}         DELETE TROJAN ACCOUNT        ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ $(grep -c "// #tr " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No Trojan clients found!${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-trojan.sh
+    exit 1
+fi
+
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// #tr " "$CONFIG" | awk '{print $3, $4}' | sort | uniq | awk '{printf " %-4s %-13s %-10s\n", NR".", $1, $2}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+user=$(grep -E "// #tr " "$CONFIG" | awk '{print $3}' | sort | uniq | sed -n "${num}p")
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    sleep 1
+    menu-trojan.sh
+    exit 1
+fi
+
+echo -e " Deleting User : ${RED}$user${NC}"
+
+# 1. DELETE THE USER
+sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+# Remove the tracking tag
+sed -i "/\/\/ #tr $user /d" "$CONFIG"
+
+# 2. SELF-HEALING LOGIC (Bulletproof Fix)
+sed -i '/^\s*$/d' "$CONFIG"
+sed -i -e '/},$/ { N; /\/\/ #trojan-ws/s/},/}/; P; D; }' "$CONFIG"
+
+# 3. CLEANUP & RESTART
+rm -f /etc/xray/limit/trojan/$user
+systemctl restart xray
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      TROJAN ACCOUNT DELETED          ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${RED}$user${NC}"
+echo -e " Status      : ${GREEN}Deleted Successfully${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-trojan.sh

@@ -1,0 +1,79 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain 2>/dev/null)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      CREATE SHADOWSOCKS ACCOUNT (WS)     ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GET USER INPUT
+while true; do
+    read -p " Username   : " user
+    if [[ -z "$user" ]]; then
+        echo -e "${RED}Error: Username cannot be empty!${NC}"
+    elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
+    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then
+        echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
+    else
+        break
+    fi
+done
+
+read -p " Expired    : " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
+read -p " Max Login  : " limit
+[[ -z "$limit" ]] && limit=1
+
+# 2. PROCESS DATA
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
+
+# 3. INJECT USER (TARGETING // #ss-ws)
+sed -i "s|// #ss-ws|,\\
+          { \"password\": \"$uuid\", \"method\": \"aes-256-gcm\", \"email\": \"$user\" }\\
+          // #ss-ws\\
+          // #ss $user $exp|g" $CONFIG
+
+# Save Limit
+mkdir -p /etc/xray/limit/shadowsocks
+echo "$limit" > /etc/xray/limit/shadowsocks/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 4. GENERATE LINKS
+# Shadowsocks requires the 'method:password' to be Base64 encoded
+ss_creds=$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)
+
+link_tls="ss://${ss_creds}@${domain}:443?plugin=v2ray-plugin%3Btls%3Bhost%3D${domain}%3Bpath%3D%2Fss-ws#${user}"
+link_http="ss://${ss_creds}@${domain}:80?plugin=v2ray-plugin%3Bhost%3D${domain}%3Bpath%3D%2Fss-ws#${user}"
+
+# 5. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      PREMIUM SHADOWSOCKS ACCOUNT         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username     : ${GREEN}$user${NC}"
+echo -e " Password     : ${GREEN}$uuid${NC}"
+echo -e " Method       : ${GREEN}aes-256-gcm${NC}"
+echo -e " Max Login    : ${GREEN}$limit Device(s)${NC}"
+echo -e " Expired On   : ${GREEN}$exp_display${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK TLS (WSS):${NC}"
+echo -e "${GREEN}$link_tls${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK HTTP (WS):${NC}"
+echo -e "${GREEN}$link_http${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ss.sh

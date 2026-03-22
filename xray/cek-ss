@@ -1,0 +1,54 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+LOG="/var/log/xray/access.log"
+CONFIG="/usr/local/etc/xray/config.json"
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}           SHADOWSOCKS USER ACTIVITY              ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ ! -f "$LOG" ]]; then
+    echo -e "${RED} Error: Xray access log not found.${NC}"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-ss.sh
+    exit 0
+fi
+
+echo -e " ${GREEN}TIME      IP ADDRESS       USER${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. Get all active Shadowsocks users from config
+ss_users=$(grep -E "// #ss " "$CONFIG" | awk '{print $3}')
+
+# 2. Search log for those specific users
+found=0
+if [[ -n "$ss_users" ]]; then
+    for user in $ss_users; do
+        # Extract the last 5 successful connections for this specific user
+        data=$(grep "accepted" "$LOG" | grep "email: $user" | tail -n 5)
+        
+        if [[ -n "$data" ]]; then
+            echo "$data" | awk '{print $2, $4, $NF}' | while read time ip log_user; do
+                clean_time=$(echo $time | cut -d. -f1)
+                clean_ip=$(echo $ip | cut -d: -f1)
+                printf " %-8s %-16s %s\n" "$clean_time" "$clean_ip" "$log_user"
+            done
+            found=1
+        fi
+    done
+fi
+
+if [[ $found -eq 0 ]]; then
+    echo -e " ${ORANGE}No active Shadowsocks connections found.${NC}"
+fi
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ss.sh

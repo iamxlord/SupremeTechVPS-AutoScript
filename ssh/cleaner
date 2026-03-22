@@ -1,0 +1,12 @@
+#!/bin/bash
+# --- TheTechSavage RAM Cleaner ---
+sync
+echo 3 > /proc/sys/vm/drop_caches
+swapoff -a && swapon -a
+# Clear logs if they get too big
+logs=(/var/log/syslog /var/log/auth.log /var/log/kern.log)
+for log in "${logs[@]}"; do
+    if [ -f "$log" ]; then
+        echo "" > "$log"
+    fi
+done

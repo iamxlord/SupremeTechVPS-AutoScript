@@ -1,0 +1,63 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      GENERATE TRIAL TROJAN (WS)   ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GENERATE USER
+rand=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+user="TRIAL-$rand"
+masaaktif=1
+limit=1
+
+# Check Duplicate (Rare but safe)
+if grep -q "\"email\": \"$user\"" "$CONFIG"; then
+    rand2=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+    user="TRIAL-$rand2"
+fi
+
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display="24 Hours (Trial)"
+
+# 2. INJECT USER (TARGETING // #trojan-ws)
+sed -i "s|// #trojan-ws|,\\
+          { \"password\": \"$uuid\", \"email\": \"$user\" }\\
+          // #trojan-ws\\
+          // #tr $user $exp|g" $CONFIG
+
+# Save Limit (So Autokill works)
+mkdir -p /etc/xray/limit/trojan
+echo "$limit" > /etc/xray/limit/trojan/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 3. GENERATE LINK
+trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
+
+# 4. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      TRIAL TROJAN CREATED         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username     : ${GREEN}$user${NC}"
+echo -e " Key/UUID     : ${GREEN}$uuid${NC}"
+echo -e " Max Login    : ${GREEN}$limit Device${NC}"
+echo -e " Expired On   : ${GREEN}$exp_display${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK TLS (WS):${NC}"
+echo -e "${GREEN}$trojan_ws${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-trojan.sh

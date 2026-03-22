@@ -1,0 +1,55 @@
+#!/bin/bash
+# --- TheTechSavage Premium Vmess Monitor ---
+clear
+
+# --- COLORS ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}             VMESS USER ACTIVITY                  ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. Check if Log Exists
+log_file="/var/log/xray/access.log"
+if [[ ! -f "$log_file" ]]; then
+    echo -e "${RED} Error: Xray access log not found.${NC}"
+    echo -e " Please check your Xray config."
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-vmess.sh
+    exit 0
+fi
+
+# 2. Extract Data (Last 10 successful logins)
+echo -e " ${GREEN}TIME      IP ADDRESS       USER${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+data=$(grep "accepted" $log_file | grep "email:" | tail -n 10)
+
+if [[ -z "$data" ]]; then
+    echo -e "${ORANGE} No activity found yet.${NC}"
+else
+    # FIX APPLIED:
+    # 1. Using $4 (IP) instead of $3 ("from")
+    # 2. Cleaning timestamp to remove microseconds
+    echo "$data" | awk '{print $2, $4, $NF}' | while read time ip user; do
+        
+        # Fix Time: Remove the long .123456 part
+        clean_time=$(echo $time | cut -d. -f1)
+        
+        # Fix IP: Remove the port :54321
+        clean_ip=$(echo $ip | cut -d: -f1)
+
+        # Print aligned columns
+        printf " %-8s %-16s %s\n" "$clean_time" "$clean_ip" "$user"
+    done
+fi
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " * Showing last 10 connections"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vmess.sh

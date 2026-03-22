@@ -1,0 +1,24 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+
+read -p " Enter Hysteria2 Username to Delete : " user
+
+if [[ -z "$user" ]]; then exit 1; fi
+
+echo -e " Deleting User : ${RED}$user${NC}"
+
+sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+sed -i "/\/\/ #hy $user /d" "$CONFIG"
+
+sed -i '/^\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+# Clean trailing comma before the #hy2 tag
+sed -i -e '/},$/ { N; /\/\/ #hy2/s/},/}/; P; D; }' "$CONFIG"
+
+rm -f /etc/xray/limit/hysteria/$user
+systemctl restart xray
+echo -e "${GREEN}Hysteria2 Account Deleted Successfully!${NC}"

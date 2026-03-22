@@ -1,0 +1,97 @@
+#!/bin/bash
+clear
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          DELETE SSH ACCOUNT              ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GATHER USERS (Same logic as 'Member' list)
+# We store them in a temp file to handle the selection by number
+tmp_users="/tmp/ssh_users.txt"
+> "$tmp_users"
+
+while IFS=: read -r username password uid gid info home shell; do
+    # Filter for UID >= 1000 and restricted shells (VPN users)
+    if [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then
+        if [[ "$shell" == "/bin/false" || "$shell" == "/usr/sbin/nologin" || "$shell" == "/bin/true" ]]; then
+            
+            # Get Expiry Date
+            exp_raw=$(chage -l "$username" | grep "Account expires" | cut -d: -f2 | sed 's/^ //g')
+            
+            if [[ "$exp_raw" == "never" ]]; then
+                exp_display="Lifetime"
+            else
+                exp_display=$(date -d "$exp_raw" "+%d-%b-%Y" 2>/dev/null)
+            fi
+            
+            echo "$username|$exp_display" >> "$tmp_users"
+        fi
+    fi
+done < /etc/passwd
+
+# 2. CHECK IF EMPTY
+if [[ ! -s "$tmp_users" ]]; then
+    echo -e "${RED}Error: No SSH users found!${NC}"
+    rm -f "$tmp_users"
+    read -n 1 -s -r -p "Press any key to return..."
+    menu-ssh.sh
+    exit 1
+fi
+
+# 3. DISPLAY LIST
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+i=1
+while IFS='|' read -r user exp; do
+    printf " %-4s %-13s %-10s\n" "$i." "$user" "$exp"
+    ((i++))
+done < "$tmp_users"
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Select Number : " num
+
+# 4. PROCESS SELECTION
+# Extract the specific line based on the number chosen
+selected_line=$(sed -n "${num}p" "$tmp_users")
+user=$(echo "$selected_line" | cut -d'|' -f1)
+exp=$(echo "$selected_line" | cut -d'|' -f2)
+
+if [[ -z "$user" ]]; then
+    echo -e "${RED}Error: Invalid selection.${NC}"
+    rm -f "$tmp_users"
+    exit 1
+fi
+
+# 5. EXECUTE DELETION
+# Lock the user first (optional but good practice)
+passwd -l "$user" > /dev/null 2>&1
+# Kill any active processes/sessions
+pkill -u "$user" > /dev/null 2>&1
+# Remove the user
+userdel -f "$user" > /dev/null 2>&1
+# Remove limit file (clean up the dashboard counter)
+rm -f /etc/xray/limit/$user
+
+# Cleanup temp file
+rm -f "$tmp_users"
+
+# 6. SUCCESS BANNER
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        SSH ACCOUNT DELETED               ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}${user}${NC}"
+echo -e " Expired On  : ${RED}${exp}${NC}"
+echo -e " Status      : ${RED}DELETED${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to return..."
+menu-ssh.sh

@@ -1,0 +1,40 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+LOG="/var/log/xray/access.log"
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}             TROJAN USER ACTIVITY                 ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " TIME      IP ADDRESS       USER"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. PARSE LOGS
+# grep "trojan"  -> Only Trojan connections
+# grep "accepted" -> Only successful logins
+# awk variables: $2 = Time, $3 = IP:Port, $NF = Username (Last field)
+
+grep "trojan" "$LOG" | grep "accepted" | tail -n 10 | awk '{print $2, $3, $NF}' | while read time ip user; do
+    # 2. STRIP PORT FROM IP
+    # This removes everything after the ":" (1.2.3.4:5678 -> 1.2.3.4)
+    real_ip=${ip%:*}
+    
+    # 3. PRINT OUTPUT
+    # Format: Time (9 spaces), IP (16 spaces), User
+    if [[ -n "$user" ]]; then
+        printf " %-9s %-16s %-10s\n" "$time" "$real_ip" "$user"
+    fi
+done
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " * Showing last 10 connections"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-trojan.sh

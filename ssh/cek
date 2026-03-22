@@ -1,0 +1,61 @@
+#!/bin/bash
+clear
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          CHECK ACTIVE USER LOGIN         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " ${GREEN}Scanning for active SSH & Dropbear connections...${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " USERNAME          PID       IP ADDRESS"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. CREATE TEMP FILE
+rm -f /tmp/login_db.txt
+touch /tmp/login_db.txt
+
+# 2. SCANNING LOGIC
+# We iterate through all real users (UID >= 1000)
+awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
+    
+    # Check if user has running processes (ssh or dropbear)
+    # pgrep -u finds processes owned by the user
+    PIDS=$(pgrep -u "$user" | grep -E "$(pgrep -f 'sshd|dropbear' | paste -s -d '|' -)")
+
+    if [[ -n "$PIDS" ]]; then
+        for pid in $PIDS; do
+            # Attempt to find IP address linked to this PID using netstat/ss
+            # Logic: Look for the PID in netstat output, grab the foreign address
+            IP=$(netstat -tnpa 2>/dev/null | grep "/sshd\|/dropbear" | grep "$pid/" | awk '{print $5}' | cut -d: -f1 | head -n 1)
+            
+            # If IP is empty (sometimes happens with internal forwarding), set placeholder
+            if [[ -z "$IP" ]]; then
+                IP="Unknown/Tunnel"
+            fi
+
+            # Print to temp file
+            echo -e " ${user} ${pid} ${IP}" >> /tmp/login_db.txt
+        done
+    fi
+done
+
+# 3. DISPLAY RESULTS
+if [ -s /tmp/login_db.txt ]; then
+    # Format output columns nicely
+    cat /tmp/login_db.txt | awk '{printf " %-17s %-9s %-15s\n", $1, $2, $3}'
+else
+    echo -e " ${RED}No active users found.${NC}"
+fi
+
+# Cleanup
+rm -f /tmp/login_db.txt
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ssh.sh

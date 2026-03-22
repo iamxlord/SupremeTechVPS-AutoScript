@@ -1,0 +1,37 @@
+#!/bin/bash
+# --- TheTechSavage Multi-Login Killer ---
+
+# Loop through all system users with UID >= 1000
+awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
+    
+    # 1. Check if user has a limit file
+    if [[ -e "/etc/xray/limit/$user" ]]; then
+        MAX_LOGIN=$(cat /etc/xray/limit/$user)
+    else
+        # Default limit if file is missing
+        MAX_LOGIN=2
+    fi
+
+    # 2. Count Active SSH/Dropbear Connections
+    # We count processes owned by the user that look like sshd or dropbear
+    # (Using pgrep -u is cleaner than parsing 'who' for accurate connection counts)
+    PID_COUNT=$(pgrep -u "$user" | grep -E "sshd|dropbear" | wc -l)
+    
+    # 3. Enforcement
+    if [[ $PID_COUNT -gt $MAX_LOGIN ]]; then
+        # Log the incident
+        date +"%Y-%m-%d %H:%M:%S : Kicked $user ($PID_COUNT/$MAX_LOGIN logins)" >> /var/log/autokill.log
+        
+        # Kill the user's processes
+        killall -u "$user"
+        
+        # --- TELEGRAM NOTIFICATION ---
+        TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)
+        TG_CHATID=$(cat /etc/xray/tg_chatid 2>/dev/null)
+        
+        if [[ -n "$TG_TOKEN" && -n "$TG_CHATID" ]]; then
+            MSG="🚨 *MULTI-LOGIN ALERT* 🚨%0A%0A👤 *User:* \`${user}\`%0A⚠️ *Logins:* ${PID_COUNT} / ${MAX_LOGIN}%0A🛑 *Action:* User connections terminated."
+            curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendMessage?chat_id=${TG_CHATID}&text=${MSG}&parse_mode=Markdown" > /dev/null 2>&1
+        fi
+    fi
+done

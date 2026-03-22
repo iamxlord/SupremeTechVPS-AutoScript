@@ -1,0 +1,74 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        GENERATE TRIAL VLESS              ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GENERATE RANDOM USER & EXPIRY
+rand=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+user="TRIAL-$rand"
+
+# Set Expiry to 1 Day (24 Hours)
+masaaktif=1
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display="24 Hours (Trial)"
+
+# Check Duplicate
+if grep -q "\"email\": \"$user\"" "$CONFIG"; then
+    rand2=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
+    user="TRIAL-$rand2"
+fi
+
+# Limit Logic (Hardcoded to 1 for trials)
+limit=1
+
+# 2. PROCESS DATA
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+# 3. INJECT USER (NEVERMORE LOGIC with #vl TAG)
+# We must use #vl so the Main Menu counts it and Delete Menu sees it.
+sed -i '/\/\/ #vless$/a\// #vl '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' "$CONFIG"
+
+# Set Limit File
+mkdir -p /etc/xray/limit/vless
+echo "$limit" > /etc/xray/limit/vless/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 4. GENERATE LINKS
+vless_tls="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=ws#${user}"
+vless_none="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=ws#${user}"
+
+# 5. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        TRIAL VLESS CREATED               ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Remarks     : ${GREEN}${user}${NC}"
+echo -e " Domain      : ${GREEN}${domain}${NC}"
+echo -e " User ID     : ${GREEN}${uuid}${NC}"
+echo -e " Expired On  : ${GREEN}${exp_display}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK TLS    :${NC}"
+echo -e "${GREEN}${vless_tls}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK NO-TLS :${NC}"
+echo -e "${GREEN}${vless_none}${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vless.sh

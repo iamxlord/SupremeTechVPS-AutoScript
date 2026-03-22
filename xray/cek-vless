@@ -1,0 +1,39 @@
+#!/bin/bash
+# --- TheTechSavage Vless Monitor ---
+
+clear
+echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "\033[0;33m             VLESS USER ACTIVITY                  \033[0m"
+echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+
+log_file="/var/log/xray/access.log"
+
+if [[ ! -f "$log_file" ]]; then
+    echo -e "\033[0;31m Error: Xray access log not found.\033[0m"
+    read -n 1 -s -r -p "Press any key to back on menu"
+    menu-vless.sh
+    exit 0
+fi
+
+echo -e " \033[0;32mTIME      IP ADDRESS       USER\033[0m"
+echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+
+# Filter for VLESS accepted connections
+# Note: Xray logs VLESS connections similar to VMESS but with different tags usually.
+# We look for lines with "accepted" and "email:"
+data=$(grep "accepted" $log_file | grep "email:" | tail -n 10)
+
+if [[ -z "$data" ]]; then
+    echo -e "\033[0;33m No activity found yet.\033[0m"
+else
+    echo "$data" | awk '{print $2, $3, $NF}' | while read time ip user; do
+        clean_ip=$(echo $ip | cut -d: -f1)
+        printf " %-9s %-16s %s\n" "$time" "$clean_ip" "$user"
+    done
+fi
+
+echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e " * Showing last 10 connections"
+echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-vless.sh

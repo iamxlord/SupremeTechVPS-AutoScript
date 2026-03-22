@@ -1,0 +1,53 @@
+#!/bin/bash
+# --- TheTechSavage Auto-Delete Expired Users ---
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${RED}             DELETE EXPIRED USERS                 ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "Scanning for expired accounts..."
+echo -e "--------------------------------------------------"
+
+count=0
+deleted=0
+
+# Scan /etc/passwd for real users (UID >= 1000)
+while IFS=: read -r username password uid gid info home shell; do
+    if [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then
+        if [[ "$shell" == "/bin/false" || "$shell" == "/usr/sbin/nologin" || "$shell" == "/bin/true" ]]; then
+            
+            # Get Expiration
+            exp_raw=$(chage -l "$username" | grep "Account expires" | cut -d: -f2)
+            
+            if [[ "$exp_raw" != *"never"* ]]; then
+                exp_sec=$(date -d "$exp_raw" +%s 2>/dev/null)
+                now_sec=$(date +%s)
+                
+                # If Expired Date is LESS THAN Current Date (User is expired)
+                if [[ $exp_sec -lt $now_sec ]]; then
+                    echo -e " User : ${RED}$username${NC} [EXPIRED]"
+                    userdel -f "$username" &> /dev/null
+                    echo -e " Status: ${GREEN}DELETED SUCCESSFULLY${NC}"
+                    echo -e "--------------------------------------------------"
+                    ((deleted++))
+                fi
+            fi
+        fi
+    fi
+done < /etc/passwd
+
+if [[ $deleted -eq 0 ]]; then
+    echo -e "${GREEN}No expired users found.${NC}"
+else
+    echo -e "${GREEN}Total Deleted: $deleted users.${NC}"
+fi
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ssh.sh

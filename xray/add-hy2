@@ -1,0 +1,73 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+domain=$(cat /etc/xray/domain 2>/dev/null)
+
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        CREATE HYSTERIA2 ACCOUNT          ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 1. GET USER INPUT
+while true; do
+    read -p " Username   : " user
+    if [[ -z "$user" ]]; then
+        echo -e "${RED}Error: Username cannot be empty!${NC}"
+    elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
+    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then
+        echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
+    else
+        break
+    fi
+done
+
+read -p " Expired    : " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
+read -p " Max Login  : " limit
+[[ -z "$limit" ]] && limit=1
+
+# 2. PROCESS DATA
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
+
+# 3. INJECT USER (TARGETING // #hy2)
+sed -i "s|// #hy2|,\\
+          { \"password\": \"$uuid\", \"email\": \"$user\" }\\
+          // #hy2\\
+          // #hy $user $exp|g" $CONFIG
+
+# Save Limit
+mkdir -p /etc/xray/limit/hysteria
+echo "$limit" > /etc/xray/limit/hysteria/$user
+
+# Restart Xray
+systemctl restart xray
+
+# 4. GENERATE LINK
+# Hysteria2 operates strictly on UDP Port 443
+hy2_link="hysteria2://${uuid}@${domain}:443/?sni=${domain}&insecure=1#${user}"
+
+# 5. SHOW OUTPUT
+clear
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}        PREMIUM HYSTERIA2 ACCOUNT         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username     : ${GREEN}$user${NC}"
+echo -e " Password     : ${GREEN}$uuid${NC}"
+echo -e " Protocol     : ${GREEN}UDP (QUIC)${NC}"
+echo -e " Max Login    : ${GREEN}$limit Device(s)${NC}"
+echo -e " Expired On   : ${GREEN}$exp_display${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE} LINK HYSTERIA2 :${NC}"
+echo -e "${GREEN}$hy2_link${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-hy.sh
