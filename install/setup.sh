@@ -57,7 +57,34 @@ systemctl stop apache2 > /dev/null 2>&1
 systemctl disable apache2 > /dev/null 2>&1
 
 apt update -y && apt upgrade -y
-apt install -y wget curl jq socat cron zip unzip net-tools git build-essential python3 python3-pip python3-full vnstat dropbear nginx dnsutils stunnel4 fail2ban
+apt install -y wget curl jq socat cron zip unzip net-tools git build-essential python3 python3-pip python3-full vnstat dropbear nginx dnsutils stunnel4 fail2ban speedtest-cli
+
+# 2.5 OPTIMIZE KERNEL (BBR & UDP MAXING FOR SLOWDNS)
+# -----------------------------------------------------
+print_title "OPTIMIZING KERNEL (BBR & UDP)"
+print_info "Applying High-Latency Tunneling Patches..."
+
+cat >> /etc/sysctl.conf <<EOF
+
+# --- NETWORK OPTIMIZATIONS ---
+# Maximize UDP Buffers for DNSTT (SlowDNS)
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.rmem_default = 1048576
+net.core.wmem_default = 1048576
+net.ipv4.udp_mem = 1048576 8388608 16777216
+
+# Enable TCP BBR for Dropbear/SSH over DNS
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+# -------------------------------------------
+EOF
+
+# Apply the patches to the live kernel immediately
+sysctl -p > /dev/null 2>&1
+print_success "Kernel Optimized for Maximum Throughput!"
 
 # 3. DOMAIN & NS SETUP (YOUR EXACT DESIGN)
 # -----------------------------------------------------
@@ -304,13 +331,20 @@ rm -rf /usr/local/go
 tar -C /usr/local -xzf /tmp/go.tar.gz
 rm -f /tmp/go.tar.gz
 
-# 2. Download Source & Compile
+# 2. Download Source, Patch, & Compile
 print_info "Building SlowDNS from Source..."
 rm -rf /tmp/dnstt
 git clone https://www.bamsoftware.com/git/dnstt.git /tmp/dnstt > /dev/null 2>&1
 cd /tmp/dnstt/dnstt-server
+
+print_info "Injecting High-Performance Buffer Patches into Go Source..."
+# 🚨 SURGICAL GO PATCH: Find where smux.DefaultConfig() is called and inject massive buffer overrides
+sed -i 's/config := smux.DefaultConfig()/config := smux.DefaultConfig()\n\tconfig.MaxReceiveBuffer = 16777216\n\tconfig.MaxStreamBuffer = 4194304/g' main.go
+
+# Initialize and Compile
 /usr/local/go/bin/go mod tidy
 /usr/local/go/bin/go build
+
 
 # 3. Setup Directory & Move Binary
 mkdir -p /etc/slowdns
@@ -344,6 +378,7 @@ Type=simple
 User=root
 ExecStartPre=/bin/sh -c 'iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 || true'
 ExecStart=/etc/slowdns/dnstt-server -udp :5300 -privkey-file /etc/slowdns/server.key $nsdomain 127.0.0.1:109
+ExecStopPost=/bin/sh -c 'iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 || true'
 Restart=always
 RestartSec=3
 

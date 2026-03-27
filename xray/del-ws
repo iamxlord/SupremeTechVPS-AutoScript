@@ -55,7 +55,11 @@ sed -i '/^\s*$/d' "$CONFIG"
 
 # 4. CLEANUP & RESTART
 rm -f /etc/xray/limit/vmess/$user
+sed -i '/^\s*,\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+sed -i '/^\s*$/d' "$CONFIG"
 systemctl restart xray
+
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        VMESS ACCOUNT DELETED             ${NC}"

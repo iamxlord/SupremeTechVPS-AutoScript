@@ -1,5 +1,10 @@
 #!/bin/bash
 # --- MR. X Refined Premium Menu (Enhanced Edition) ---
+# --- Auto-Elevate to Root ---
+if [ "${EUID}" -ne 0 ]; then
+    echo -e "\033[0;33mElevating privileges... Please enter your password if prompted.\033[0m"
+    exec sudo "$0" "$@"
+fi
 
 # Color Settings
 RED='\033[0;31m'
@@ -131,9 +136,9 @@ case $opt in
             *) echo "Invalid"; sleep 1; menu ;;
           esac ;;
     8|08) menu-set.sh ;;
-    9|09) backup.sh ;;
-    10) add-host.sh ;;
-    11) running.sh ;;
+    9|09) backup ;;
+    10) menu-set.sh ;;
+    11) health-check ;;
     12) 
         read -p "Set Reboot Hour (0-23): " hr
         if [[ "$hr" =~ ^[0-9]+$ ]] && [ "$hr" -ge 0 ] && [ "$hr" -le 23 ]; then

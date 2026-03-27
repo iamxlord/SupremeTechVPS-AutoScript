@@ -4,6 +4,11 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
+# --- Auto-Elevate to Root ---
+if [ "${EUID}" -ne 0 ]; then
+    echo -e "\033[0;33mElevating privileges... Please enter your password if prompted.\033[0m"
+    exec sudo "$0" "$@"
+fi
 
 clear
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"

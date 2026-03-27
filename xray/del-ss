@@ -27,5 +27,8 @@ sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
 sed -i -e '/},$/ { N; /\/\/ #ss-ws/s/},/}/; P; D; }' "$CONFIG"
 
 rm -f /etc/xray/limit/shadowsocks/$user
+sed -i '/^\s*,\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+sed -i '/^\s*$/d' "$CONFIG"
 systemctl restart xray
 echo -e "${GREEN}Shadowsocks Account Deleted Successfully!${NC}"

@@ -1,34 +1,40 @@
 import socket, threading, select
 
 # --- Config ---
-# Listen on both standard HTTP and Proxy ports
 LISTENING_PORTS = [80, 8080]
-# Forward to Dropbear SSH
 SSH_PORT = 109 
 
-# --- Logic ---
 def handle_client(client_socket):
     server_socket = None
     try:
-        # Read the initial payload
-        request = client_socket.recv(4096).decode('utf-8', errors='ignore')
+        # Read the initial payload packet
+        request_data = client_socket.recv(8192)
+        if not request_data:
+            return
+            
+        request_str = request_data.decode('utf-8', errors='ignore')
         
         # Connect to Local SSH (Dropbear)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.connect(('127.0.0.1', SSH_PORT))
         
-        # Check if it's a WebSocket request
-        if "Upgrade: websocket" in request or "Upgrade: Websocket" in request:
-            response = "HTTP/1.1 101 Switching Protocols\r\n" \
-                       "Upgrade: websocket\r\n" \
-                       "Connection: Upgrade\r\n\r\n"
-            client_socket.send(response.encode('utf-8'))
+        # Handle the Handshake
+        if "Upgrade: websocket" in request_str or "Upgrade: Websocket" in request_str:
+            client_socket.send(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
         else:
-            # For strange payloads, HTTP Injector, or standard proxy requests
-            # We blindly approve the connection to establish the SSH tunnel
-            response = "HTTP/1.1 200 Connection Established\r\n\r\n"
-            client_socket.send(response.encode('utf-8'))
-        
+            client_socket.send(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            
+        # 🚨 THE FIX: TCP Pipelining Catch
+        # Find where the HTTP headers end and forward any appended SSH data
+        if b'\r\n\r\n' in request_data:
+            leftover = request_data.split(b'\r\n\r\n', 1)[1]
+            if leftover:
+                server_socket.send(leftover)
+        elif b'\n\n' in request_data:
+            leftover = request_data.split(b'\n\n', 1)[1]
+            if leftover:
+                server_socket.send(leftover)
+                
         # Start Bi-directional Forwarding
         while True:
             r, w, x = select.select([client_socket, server_socket], [], [])
@@ -50,7 +56,6 @@ def handle_client(client_socket):
 
 def start_server(port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Prevent "Address already in use" errors
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(('0.0.0.0', port))
     server.listen(100)
@@ -61,7 +66,5 @@ def start_server(port):
         threading.Thread(target=handle_client, args=(client_sock,)).start()
 
 if __name__ == "__main__":
-    # Start a thread for Port 80
     threading.Thread(target=start_server, args=(LISTENING_PORTS[0],)).start()
-    # Run Port 8080 on the main thread to keep script alive
     start_server(LISTENING_PORTS[1])

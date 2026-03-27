@@ -46,6 +46,9 @@ sed -i -e '/},$/ { N; /\/\/ #trojan-ws/s/},/}/; P; D; }' "$CONFIG"
 
 # 3. CLEANUP & RESTART
 rm -f /etc/xray/limit/trojan/$user
+sed -i '/^\s*,\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+sed -i '/^\s*$/d' "$CONFIG"
 systemctl restart xray
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

@@ -20,5 +20,8 @@ sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
 sed -i -e '/},$/ { N; /\/\/ #hy2/s/},/}/; P; D; }' "$CONFIG"
 
 rm -f /etc/xray/limit/hysteria/$user
+sed -i '/^\s*,\s*$/d' "$CONFIG"
+sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+sed -i '/^\s*$/d' "$CONFIG"
 systemctl restart xray
 echo -e "${GREEN}Hysteria2 Account Deleted Successfully!${NC}"

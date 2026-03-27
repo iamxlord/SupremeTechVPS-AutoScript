@@ -139,15 +139,15 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 *Custom HTTP Proxy (e.g. Bug Fronting):*
 `GET http://{domain} HTTP/1.1[crlf]Host: bug.com[crlf][crlf]`"""
 
-        elif protocol == "VMess":
+         elif protocol == "VMess":
             uid = str(uuid.uuid4())
-            sed_str = f"/\\/\\/ #vmess$/a // ### {user} {exp_date}\n}},{{\"id\": \"{uid}\",\"alterId\": 0,\"email\": \"{user}\""
-            subprocess.run(["sed", "-i", sed_str, config_path], check=True)
+            sed_cmd = f"sed -i '/\\/\\/ #vmess$/a\\/\\/ ### {user} {exp_date}\\n}},{{\"id\": \"{uid}\",\"alterId\": 0,\"email\": \"{user}\"' {config_path}"
+            subprocess.run(sed_cmd, shell=True, check=True)
             
             os.makedirs('/etc/xray/limit/vmess', exist_ok=True)
             with open(f'/etc/xray/limit/vmess/{user}', 'w') as f: f.write(limit)
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
-            
+            subprocess.run("systemctl restart xray", shell=True, check=True)
+
             v_dict = {"add": domain, "aid": "0", "host": domain, "id": uid, "net": "ws", "path": "/vmess", "port": "443", "ps": user, "scy": "auto", "sni": domain, "tls": "tls", "type": "", "v": "2"}
             link_tls = "vmess://" + base64.b64encode(json.dumps(v_dict).encode()).decode()
             
@@ -162,14 +162,14 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 🔗 *TLS Link:*
 `{link_tls}`"""
 
-        elif protocol == "VLESS":
+         elif protocol == "VLESS":
             uid = str(uuid.uuid4())
-            sed_str = f"/\\/\\/ #vless$/a // #vl {user} {exp_date}\n}},{{\"id\": \"{uid}\",\"email\": \"{user}\""
-            subprocess.run(["sed", "-i", sed_str, config_path], check=True)
+            sed_cmd = f"sed -i '/\\/\\/ #vless$/a\\/\\/ #vl {user} {exp_date}\\n}},{{\"id\": \"{uid}\",\"email\": \"{user}\"' {config_path}"
+            subprocess.run(sed_cmd, shell=True, check=True)
             
             os.makedirs('/etc/xray/limit/vless', exist_ok=True)
             with open(f'/etc/xray/limit/vless/{user}', 'w') as f: f.write(limit)
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
+            subprocess.run("systemctl restart xray", shell=True, check=True)
             
             link_tls = f"vless://{uid}@{domain}:443?path=/vless&security=tls&encryption=none&type=ws#{user}"
             receipt = f"""✅ *PREMIUM VLESS ACCOUNT* ✅
@@ -183,15 +183,14 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 🔗 *TLS Link:*
 `{link_tls}`"""
 
-        elif protocol == "Trojan":
+         elif protocol == "Trojan":
             uid = str(uuid.uuid4())
-            # Note the {{ and }} to escape Python's f-string formatting inside the sed command
-            sed_str = f"s|// #trojan-ws|,\\n          {{ \"password\": \"{uid}\", \"email\": \"{user}\" }}\\n          // #trojan-ws\\n          // #tr {user} {exp_date}|g"
-            subprocess.run(["sed", "-i", sed_str, config_path], check=True)
+            sed_cmd = f"sed -i 's|// #trojan-ws|,\\n          {{ \"password\": \"{uid}\", \"email\": \"{user}\" }}\\n          // #trojan-ws\\n          // #tr {user} {exp_date}|g' {config_path}"
+            subprocess.run(sed_cmd, shell=True, check=True)
             
             os.makedirs('/etc/xray/limit/trojan', exist_ok=True)
             with open(f'/etc/xray/limit/trojan/{user}', 'w') as f: f.write(limit)
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
+            subprocess.run("systemctl restart xray", shell=True, check=True)
             
             link_tls = f"trojan://{uid}@{domain}:443?path=%2Ftrojan-ws&security=tls&host={domain}&type=ws&sni={domain}#{user}"
             receipt = f"""✅ *PREMIUM TROJAN ACCOUNT* ✅
@@ -207,13 +206,13 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 
         elif protocol == "Shadowsocks":
             uid = str(uuid.uuid4())
-            sed_str = f"s|// #ss-ws|,\\n          {{ \"password\": \"{uid}\", \"method\": \"aes-256-gcm\", \"email\": \"{user}\" }}\\n          // #ss-ws\\n          // #ss {user} {exp_date}|g"
-            subprocess.run(["sed", "-i", sed_str, config_path], check=True)
+            sed_cmd = f"sed -i 's|// #ss-ws|,\\n          {{ \"password\": \"{uid}\", \"method\": \"aes-256-gcm\", \"email\": \"{user}\" }}\\n          // #ss-ws\\n          // #ss {user} {exp_date}|g' {config_path}"
+            subprocess.run(sed_cmd, shell=True, check=True)
             
             os.makedirs('/etc/xray/limit/shadowsocks', exist_ok=True)
             with open(f'/etc/xray/limit/shadowsocks/{user}', 'w') as f: f.write(limit)
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
-            
+            subprocess.run("systemctl restart xray", shell=True, check=True)
+
             ss_creds = base64.b64encode(f"aes-256-gcm:{uid}".encode()).decode()
             link_tls = f"ss://{ss_creds}@{domain}:443?plugin=v2ray-plugin%3Btls%3Bhost%3D{domain}%3Bpath%3D%2Fss-ws#{user}"
             link_http = f"ss://{ss_creds}@{domain}:80?plugin=v2ray-plugin%3Bhost%3D{domain}%3Bpath%3D%2Fss-ws#{user}"
@@ -232,14 +231,14 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 🔗 *HTTP Obfs (WS) Link:*
 `{link_http}`"""
 
-        elif protocol == "Hysteria2":
+         elif protocol == "Hysteria2":
             uid = str(uuid.uuid4())
-            sed_str = f"s|// #hy2|,\\n          {{ \"password\": \"{uid}\", \"email\": \"{user}\" }}\\n          // #hy2\\n          // #hy {user} {exp_date}|g"
-            subprocess.run(["sed", "-i", sed_str, config_path], check=True)
+            sed_cmd = f"sed -i 's|// #hy2|,\\n          {{ \"password\": \"{uid}\", \"email\": \"{user}\" }}\\n          // #hy2\\n          // #hy {user} {exp_date}|g' {config_path}"
+            subprocess.run(sed_cmd, shell=True, check=True)
             
             os.makedirs('/etc/xray/limit/hysteria', exist_ok=True)
             with open(f'/etc/xray/limit/hysteria/{user}', 'w') as f: f.write(limit)
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
+            subprocess.run("systemctl restart xray", shell=True, check=True)
             
             link = f"hysteria2://{uid}@{domain}:443/?sni={domain}&insecure=1#{user}"
             
@@ -272,12 +271,15 @@ def server_status(message):
         ssh_cmd = "awk -F: '$3 >= 1000 && $1 != \"nobody\" && ($7 == \"/bin/false\" || $7 == \"/usr/sbin/nologin\") {print $1}' /etc/passwd | wc -l"
         ssh_count = subprocess.check_output(["sh", "-c", ssh_cmd]).decode().strip()
         
-        config = "/usr/local/etc/xray/config.json"
-        vmess_count = subprocess.check_output(["grep", "-c", "// ###", config]).decode().strip()
-        vless_count = subprocess.check_output(["grep", "-c", "// #vl", config]).decode().strip()
-        trojan_count = subprocess.check_output(["grep", "-c", "// #tr", config]).decode().strip()
-        ss_count = subprocess.check_output(["grep", "-c", "// #ss ", config]).decode().strip()
-        hy2_count = subprocess.check_output(["grep", "-c", "// #hy ", config]).decode().strip()
+        def get_count(tag):
+            res = subprocess.run(f"grep -c '{tag}' /usr/local/etc/xray/config.json", shell=True, capture_output=True, text=True)
+            return res.stdout.strip() if res.returncode == 0 else "0"
+
+        vmess_count = get_count("// ###")
+        vless_count = get_count("// #vl")
+        trojan_count = get_count("// #tr")
+        ss_count = get_count("// #ss ")
+        hy2_count = get_count("// #hy ")
 
         status_msg = f"""🖥 *MR. X SERVER STATUS* 🖥
 
