@@ -1,27 +1,29 @@
 #!/bin/bash
 clear
-CONFIG="/usr/local/etc/xray/config.json"
+HY_CONFIG="/etc/hysteria/config.yaml"
+HY_EXP="/etc/hysteria/exp.txt"
 RED='\033[0;31m'
 NC='\033[0m'
 GREEN='\033[0;32m'
 
 read -p " Enter Hysteria2 Username to Delete : " user
-
 if [[ -z "$user" ]]; then exit 1; fi
+
+# Verify if user exists using jq
+if ! jq -e ".auth.userpass[\"$user\"]" "$HY_CONFIG" >/dev/null 2>&1; then
+    echo -e "${RED}Error: User '$user' not found in Hysteria2!${NC}"
+    exit 1
+fi
 
 echo -e " Deleting User : ${RED}$user${NC}"
 
-sed -i "/\"email\": \"$user\"/d" "$CONFIG"
-sed -i "/\/\/ #hy $user /d" "$CONFIG"
+# 🚨 THE FIX: Use JQ natively instead of dangerous Sed
+jq "del(.auth.userpass[\"$user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
 
-sed -i '/^\s*$/d' "$CONFIG"
-sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-# Clean trailing comma before the #hy2 tag
-sed -i -e '/},$/ { N; /\/\/ #hy2/s/},/}/; P; D; }' "$CONFIG"
+# Clean up Trackers
+sed -i "/^$user:/d" "$HY_EXP" 2>/dev/null
+rm -f /etc/xray/limit/hysteria/$user 2>/dev/null
 
-rm -f /etc/xray/limit/hysteria/$user
-sed -i '/^\s*,\s*$/d' "$CONFIG"
-sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-sed -i '/^\s*$/d' "$CONFIG"
-systemctl restart xray
+# Restart the Standalone service
+systemctl restart hysteria-server.service
 echo -e "${GREEN}Hysteria2 Account Deleted Successfully!${NC}"

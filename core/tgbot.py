@@ -198,22 +198,29 @@ OVPN         : `http://{domain}:85/client-tcp.ovpn`
 
             elif protocol == "Hysteria2":
                 uid = str(uuid.uuid4())
-                new_block = f",\n          {{ \"password\": \"{uid}\", \"email\": \"{user}\" }}\n          // #hy2\n          // #hy {user} {exp_date}"
-                config_data = config_data.replace("// #hy2", new_block)
+                hy_conf_path = "/etc/hysteria/config.yaml"
                 
+                # Read Standalone Hysteria Config natively
+                with open(hy_conf_path, 'r') as f:
+                    hy_data = json.load(f)
+                
+                # Add user to the 'userpass' dictionary
+                hy_data["auth"]["userpass"][user] = uid
+
+                # Save the file
+                with open(hy_conf_path, 'w') as f:
+                    json.dump(hy_data, f, indent=2)
+
                 os.makedirs('/etc/xray/limit/hysteria', exist_ok=True)
                 with open(f'/etc/xray/limit/hysteria/{user}', 'w') as f: f.write(limit)
                 
-                link = f"hysteria2://{uid}@{domain}:443/?sni={domain}&insecure=0#{user}"
+                # Restart the standalone service
+                subprocess.run(["systemctl", "restart", "hysteria-server.service"], check=True)
+                
+                # Hysteria 2 Userpass Format: user:password
+                link = f"hysteria2://{user}:{uid}@{domain}:443/?sni={domain}&insecure=0#{user}"
                 receipt = f"""✅ *PREMIUM HYSTERIA v2* ✅\n\n👤 *Username:* `{user}`\n🔑 *Password:* `{uid}`\n📱 *Limit:* `{limit}` Device(s)\n📆 *Expiry:* `{exp_date}`\n🏠 *Host:* `{domain}`\n🔌 *Protocol:* `UDP`\n\n🔗 *Hysteria2 Link:*\n`{link}`"""
-
-            # Save the updated JSON back to the file
-            with open(config_path, 'w') as f:
-                f.write(config_data)
-
-            # Restart Xray using safe subprocess execution
-            subprocess.run(["systemctl", "restart", "xray"], check=True)
-
+                
         bot.send_message(cid, receipt, parse_mode="Markdown")
         
     except subprocess.CalledProcessError as e:

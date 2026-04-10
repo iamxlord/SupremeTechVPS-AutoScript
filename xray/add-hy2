@@ -1,6 +1,7 @@
 #!/bin/bash
 clear
-CONFIG="/usr/local/etc/xray/config.json"
+HY_CONFIG="/etc/hysteria/config.yaml"
+HY_EXP="/etc/hysteria/exp.txt"
 domain=$(cat /etc/xray/domain 2>/dev/null)
 
 # --- COLORS & FORMATTING ---
@@ -14,23 +15,23 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${ORANGE}        CREATE HYSTERIA2 ACCOUNT          ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 1. GET USER INPUT
+# 1. GET USER INPUT & CHECK DUPLICATES SAFELY
 while true; do
     read -p " Username   : " user
     if [[ -z "$user" ]]; then
         echo -e "${RED}Error: Username cannot be empty!${NC}"
     elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then
         echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
-    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then
+    elif jq -e ".auth.userpass[\"$user\"]" "$HY_CONFIG" >/dev/null 2>&1; then
         echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
     else
         break
     fi
 done
 
-read -p " Expired    : " masaaktif
+read -p " Expired (Days) : " masaaktif
 [[ -z "$masaaktif" ]] && masaaktif=30
-read -p " Max Login  : " limit
+read -p " Max Login      : " limit
 [[ -z "$limit" ]] && limit=1
 
 # 2. PROCESS DATA
@@ -38,22 +39,20 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (TARGETING // #hy2)
-sed -i "s|// #hy2|,\\
-          { \"password\": \"$uuid\", \"email\": \"$user\" }\\
-          // #hy2\\
-          // #hy $user $exp|g" $CONFIG
+# 3. INJECT USER (Pure JQ)
+jq ".auth.userpass += {\"$user\": \"$uuid\"}" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
 
-# Save Limit
+# Save Limit & Tracker
 mkdir -p /etc/xray/limit/hysteria
+touch "$HY_EXP"
 echo "$limit" > /etc/xray/limit/hysteria/$user
+echo "$user:$exp" >> "$HY_EXP"
 
-# Restart Xray
-systemctl restart xray
+# Restart Standalone Engine
+systemctl restart hysteria-server.service
 
-# 4. GENERATE LINK
-# Hysteria2 operates strictly on UDP Port 443
-hy2_link="hysteria2://${uuid}@${domain}:443/?sni=${domain}&insecure=1#${user}"
+# 4. GENERATE LINK (Enforcing insecure=0 & userpass format)
+hy2_link="hysteria2://${user}:${uuid}@${domain}:443/?sni=${domain}&insecure=0#${user}"
 
 # 5. SHOW OUTPUT
 clear
@@ -62,7 +61,7 @@ echo -e "${ORANGE}        PREMIUM HYSTERIA2 ACCOUNT         ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username     : ${GREEN}$user${NC}"
 echo -e " Password     : ${GREEN}$uuid${NC}"
-echo -e " Protocol     : ${GREEN}UDP (QUIC)${NC}"
+echo -e " Protocol     : ${GREEN}UDP (QUIC) Standalone${NC}"
 echo -e " Max Login    : ${GREEN}$limit Device(s)${NC}"
 echo -e " Expired On   : ${GREEN}$exp_display${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

@@ -3,6 +3,8 @@
 
 CONFIG="/usr/local/etc/xray/config.json"
 BACKUP="/tmp/config.json.bak"
+HY_CONFIG="/etc/hysteria/config.yaml"
+HY_EXP="/etc/hysteria/exp.txt"
 today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
 
 echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
@@ -20,12 +22,13 @@ awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user;
     fi
 done
 
-# 2. Xray Expiry Check & Hybrid JSON Modification
+# 2. Xray Expiry Check (VMess, VLESS, Trojan, SS)
 if [ -f "$CONFIG" ]; then
-    # 🚨 Create a safe backup before ANY modifications
+    # Create a safe backup before ANY modifications
     cp "$CONFIG" "$BACKUP"
 
-    grep -E "\/\/ #(##|vl|tr|ss|hy) " "$CONFIG" | while read -r line; do
+    # NOTE: Removed 'hy' from the grep tag list
+    grep -E "\/\/ #(##|vl|tr|ss) " "$CONFIG" | while read -r line; do
         tag=$(echo "$line" | awk '{print $2}')
         user=$(echo "$line" | awk '{print $3}')
         exp=$(echo "$line" | awk '{print $4}')
@@ -36,7 +39,7 @@ if [ -f "$CONFIG" ]; then
             if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
                 echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
                 
-                # 🚨 Bounded deletion to prevent subset matching (bob vs bob2)
+                # Bounded deletion to prevent subset matching
                 sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
                 sed -i "/\/\/ $tag $user /d" "$CONFIG"
                 
@@ -44,34 +47,49 @@ if [ -f "$CONFIG" ]; then
                 rm -f /etc/xray/limit/vmess/$user \
                       /etc/xray/limit/vless/$user \
                       /etc/xray/limit/trojan/$user \
-                      /etc/xray/limit/shadowsocks/$user \
-                      /etc/xray/limit/hysteria/$user 2>/dev/null
+                      /etc/xray/limit/shadowsocks/$user 2>/dev/null
             fi
         fi
     done
     
-    # 3. Clean trailing commas safely (ONLY at the end of objects)
-    sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|hy|vmess|vless|trojan-ws|ss-ws|hy2)/s/},/}/; P; D; }' "$CONFIG"
+    # Clean trailing commas safely
+    sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|vmess|vless|trojan-ws|ss-ws)/s/},/}/; P; D; }' "$CONFIG"
     sed -i '/^\s*,\s*$/d' "$CONFIG"
 
-    # 4. 🚨 THE JQ VALIDATOR 🚨
+    # 🚨 XRAY JQ VALIDATOR 🚨
     if command -v jq &> /dev/null; then
         if jq . "$CONFIG" >/dev/null 2>&1; then
-            # JSON is perfectly valid. Safe to restart.
             if systemctl is-active xray &>/dev/null; then
                 systemctl restart xray
-                echo "Xray service restarted after expiry cleanup." >> /var/log/vpn-expiry.log
             fi
         else
-            # JSON IS BROKEN. Revert to backup instantly to save the server.
             cp "$BACKUP" "$CONFIG"
-            echo "CRITICAL: JSON Corruption prevented. Reverted to backup." >> /var/log/vpn-expiry.log
+            echo "CRITICAL: Xray JSON Corruption prevented. Reverted to backup." >> /var/log/vpn-expiry.log
             systemctl restart xray
         fi
     else
-        # Fallback if jq is somehow not installed (should be via setup.sh)
         systemctl restart xray
     fi
-else
-    echo "Error: Xray config file not found at $CONFIG" >> /var/log/vpn-expiry.log
+fi
+
+# 3. Standalone Hysteria 2 Expiry Check
+if [ -f "$HY_EXP" ] && [ -f "$HY_CONFIG" ]; then
+    while IFS=: read -r hy_user hy_exp; do
+        if [[ -n "$hy_exp" ]]; then
+            exp_sec=$(date -d "$hy_exp" +%s 2>/dev/null)
+            
+            if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
+                echo "Deleted Expired Hysteria2: $hy_user" >> /var/log/vpn-expiry.log
+                
+                # Use pure jq to delete the user safely
+                jq "del(.auth.userpass[\"$hy_user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
+                
+                # Delete from Tracker and Limits
+                sed -i "/^$hy_user:/d" "$HY_EXP"
+                rm -f /etc/xray/limit/hysteria/$hy_user 2>/dev/null
+                
+                systemctl restart hysteria-server.service
+            fi
+        fi
+    done < "$HY_EXP"
 fi

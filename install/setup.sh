@@ -187,20 +187,79 @@ systemctl restart dropbear
 print_title "INSTALLING XRAY CORE"
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 
-# 6. INSTALL SSL/TLS
+# # 6. INSTALL SSL/TLS & ROBUST VERIFICATION
 # -----------------------------------------------------
 print_title "GENERATING SSL CERTIFICATE"
 
-# Stop Nginx completely to free Port 80
-systemctl stop nginx
+DOMAIN=$(cat /etc/xray/domain)
+echo -e "${BLUE}[INFO] Getting certificate for: $DOMAIN${NC}"
+
+# Stop anything using port 80 (Let's Encrypt needs it)
+systemctl stop nginx > /dev/null 2>&1
+systemctl stop ws-proxy > /dev/null 2>&1
+fuser -k 80/tcp > /dev/null 2>&1
+sleep 2
+
+# Request the certificate
 mkdir -p /root/.acme.sh
-curl https://acme-install.com | sh
+curl -s https://get.acme.sh | sh
 /root/.acme.sh/acme.sh --upgrade --auto-upgrade
 /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-/root/.acme.sh/acme.sh --issue -d "$domain" --standalone -k ec-256 --force
-/root/.acme.sh/acme.sh --installcert -d "$domain" --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc
+/root/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone -k ec-256 --force
+
+# Install the certificate where Nginx and Xray expect it
+/root/.acme.sh/acme.sh --installcert -d "$DOMAIN" \
+    --fullchainpath /etc/xray/xray.crt \
+    --keypath /etc/xray/xray.key \
+    --ecc
+
+# Set proper permissions
+chmod 644 /etc/xray/xray.crt
 chmod 644 /etc/xray/xray.key
-print_success "SSL Certificate Installed!"
+
+# 🚨 THE FIX: Verify SSL Success before proceeding
+if [[ -f /etc/xray/xray.crt && -s /etc/xray/xray.crt ]]; then
+    print_success "Real Let's Encrypt SSL certificate obtained!"
+else
+    echo -e "${RED}❌ Certificate not found or empty! Nginx and Xray will fail.${NC}"
+    echo -e "${YELLOW}Please check if your domain ($DOMAIN) correctly points to $(curl -s ifconfig.me).${NC}"
+    echo -e "${RED}Installation Aborted. Please fix DNS and run again.${NC}"
+    exit 1
+fi
+
+# -----------------------------------------------------
+# INSTALL STANDALONE HYSTERIA 2 (UDP 443)
+# -----------------------------------------------------
+print_title "INSTALLING HYSTERIA 2"
+
+# 1. Install Official Hysteria 2
+bash <(curl -fsSL https://get.hy2.sh/)
+
+# 2. Write JSON-formatted config (Valid YAML) mapped to Let's Encrypt
+cat > /etc/hysteria/config.yaml <<EOF
+{
+  "listen": ":443",
+  "tls": {
+    "cert": "/etc/xray/xray.crt",
+    "key": "/etc/xray/xray.key"
+  },
+  "auth": {
+    "type": "userpass",
+    "userpass": {}
+  },
+  "masquerade": {
+    "type": "proxy",
+    "proxy": {
+      "url": "https://bing.com",
+      "rewriteHost": true
+    }
+  }
+}
+EOF
+
+systemctl enable hysteria-server.service
+systemctl restart hysteria-server.service
+print_success "Hysteria 2 Standalone Configured on UDP 443!"
 
 # 6.5 CONFIGURE STUNNEL4
 # -----------------------------------------------------
@@ -533,7 +592,7 @@ for file in "${files_ssh[@]}"; do
 done
 
 # ADDED ALL SS AND HY2 SCRIPTS HERE:
-files_xray=(add-ws del-ws renew-ws cek-ws trial-ws add-vless del-vless renew-vless cek-vless trial-vless add-tr del-tr renew-tr cek-tr trial-tr add-ss del-ss renew-ss cek-ss trial-ss add-hy2 del-hy2 renew-hy2 cek-hy2 trial-hy2)
+files_xray=(add-ws del-ws renew-ws cek-ws trial-ws add-vless del-vless xray-limit renew-vless cek-vless trial-vless add-tr del-tr renew-tr cek-tr trial-tr add-ss del-ss renew-ss cek-ss trial-ss add-hy2 del-hy2 renew-hy2 cek-hy2 trial-hy2)
 for file in "${files_xray[@]}"; do
     download_bin "xray" "$file"
 done
