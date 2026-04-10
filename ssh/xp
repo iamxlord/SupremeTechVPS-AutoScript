@@ -1,12 +1,13 @@
 #!/bin/bash
-# --- Mr. X Universal Auto-Expiry Script ---
+# --- Mr. X Universal Auto-Expiry & JSON Validator ---
 
 CONFIG="/usr/local/etc/xray/config.json"
+BACKUP="/tmp/config.json.bak"
 today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
 
 echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
 
-# 1. SSH Expiry Check
+# 1. SSH Expiry Check (Preserved)
 awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
     expiration=$(chage -l $user 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
     if [[ "$expiration" != "never" && -n "$expiration" ]]; then
@@ -19,9 +20,11 @@ awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user;
     fi
 done
 
-# 2. Xray Expiry Check (Handles VMess, VLESS, Trojan, SS, HY2)
-# Matches tags: // ### (vmess), // #vl (vless), // #tr (trojan), // #ss (shadowsocks), // #hy (hysteria2)
+# 2. Xray Expiry Check & Hybrid JSON Modification
 if [ -f "$CONFIG" ]; then
+    # 🚨 Create a safe backup before ANY modifications
+    cp "$CONFIG" "$BACKUP"
+
     grep -E "\/\/ #(##|vl|tr|ss|hy) " "$CONFIG" | while read -r line; do
         tag=$(echo "$line" | awk '{print $2}')
         user=$(echo "$line" | awk '{print $3}')
@@ -33,11 +36,9 @@ if [ -f "$CONFIG" ]; then
             if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
                 echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
                 
-                # Atomic Deletion - safer approach with temporary file
-                temp_config=$(mktemp)
-                sed "/\"email\": \"$user\"/d" "$CONFIG" > "$temp_config"
-                sed -i "/\/\/ $tag $user /d" "$temp_config"
-                mv "$temp_config" "$CONFIG"
+                # 🚨 Bounded deletion to prevent subset matching (bob vs bob2)
+                sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
+                sed -i "/\/\/ $tag $user /d" "$CONFIG"
                 
                 # Cleanup limit files
                 rm -f /etc/xray/limit/vmess/$user \
@@ -49,32 +50,27 @@ if [ -f "$CONFIG" ]; then
         fi
     done
     
-    # 3. Xray JSON Self-Healing (Runs once after all deletions)
-    # Validate JSON before attempting fixes
+    # 3. Clean trailing commas safely (ONLY at the end of objects)
+    sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|hy|vmess|vless|trojan-ws|ss-ws|hy2)/s/},/}/; P; D; }' "$CONFIG"
+    sed -i '/^\s*,\s*$/d' "$CONFIG"
+
+    # 4. 🚨 THE JQ VALIDATOR 🚨
     if command -v jq &> /dev/null; then
-        # Use jq to validate and format JSON properly
-        if ! jq . "$CONFIG" > /dev/null 2>&1; then
-            echo "Warning: Invalid JSON in config file" >> /var/log/vpn-expiry.log
-            # Attempt basic fixes
-            sed -i '/^\s*$/d' "$CONFIG"
-            sed -i 's/}[[:space:]]*{/},\n          {/g' "$CONFIG"
-            # Remove trailing commas before closing brackets
-            sed -i 's/,[[:space:]]*}/}/g' "$CONFIG"
-            sed -i 's/,[[:space:]]*]/]/g' "$CONFIG"
+        if jq . "$CONFIG" >/dev/null 2>&1; then
+            # JSON is perfectly valid. Safe to restart.
+            if systemctl is-active xray &>/dev/null; then
+                systemctl restart xray
+                echo "Xray service restarted after expiry cleanup." >> /var/log/vpn-expiry.log
+            fi
+        else
+            # JSON IS BROKEN. Revert to backup instantly to save the server.
+            cp "$BACKUP" "$CONFIG"
+            echo "CRITICAL: JSON Corruption prevented. Reverted to backup." >> /var/log/vpn-expiry.log
+            systemctl restart xray
         fi
     else
-        # Fallback to basic fixes without jq
-        sed -i '/^\s*$/d' "$CONFIG"
-        sed -i 's/}[[:space:]]*{/},\n          {/g' "$CONFIG"
-        sed -i -e '/},$/ { N; /\/\/ #trojan-ws/s/},/}/; P; D; }' "$CONFIG"
-        sed -i -e '/},$/ { N; /\/\/ #ss-ws/s/},/}/; P; D; }' "$CONFIG"
-        sed -i -e '/},$/ { N; /\/\/ #hy2/s/},/}/; P; D; }' "$CONFIG"
-    fi
-    
-    # Only restart if config file exists and is readable
-    if [ -f "$CONFIG" ] && systemctl is-active xray &>/dev/null; then
+        # Fallback if jq is somehow not installed (should be via setup.sh)
         systemctl restart xray
-        echo "Xray service restarted after expiry cleanup" >> /var/log/vpn-expiry.log
     fi
 else
     echo "Error: Xray config file not found at $CONFIG" >> /var/log/vpn-expiry.log

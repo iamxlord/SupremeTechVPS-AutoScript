@@ -1,192 +1,285 @@
 #!/bin/bash
-# --- Auto-Elevate to Root ---
+# --- Mr. X Premium System Settings & Extensions ---
+
+# Auto-Elevate to Root
 if [ "${EUID}" -ne 0 ]; then
     echo -e "\033[0;33mElevating privileges... Please enter your password if prompted.\033[0m"
     exec sudo "$0" "$@"
 fi
 
+# --- COLORS & VARIABLES ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+CYAN='\033[0;36m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
-MYIP=$(wget -qO- icanhazip.com)
-domain=$(cat /etc/xray/domain)
-clear
-echo -e "\033[0;34m┌─────────────────────────────────────────────────────┐\033[0m"
-echo -e "     \E[44;1;39m          SYSTEM SETTINGS MANAGER            \E[0m"
-echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-echo -e " [\033[0;32m01\033[0m]  Panel Domain (Change / Renew)"
-echo -e " [\033[0;32m02\033[0m]  Speedtest VPS"
-echo -e " [\033[0;32m03\033[0m]  Info Port"
-echo -e " [\033[0;32m04\033[0m]  Set Auto Reboot (Interval)"
-echo -e " [\033[0;32m05\033[0m]  Set Auto Reboot (Specific Time)"
-echo -e " [\033[0;32m06\033[0m]  Restart All Services"
-echo -e " [\033[0;32m07\033[0m]  Change Banner"
-echo -e " [\033[0;32m08\033[0m]  Check Bandwidth"
-echo -e " [\033[0;32m09\033[0m]  Server Health Check"
-echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-echo -e " [\033[0;31m00\033[0m]  Back to Main Menu"
-echo -e ""
-read -p " Select menu : " opt
-case $opt in
-1|01)
+
+MYIP=$(curl -sS ifconfig.me)
+
+# ==========================================
+# 1. DOMAIN MANAGER
+# ==========================================
+domain_manager() {
     clear
-    echo -e "\033[0;34m┌─────────────────────────────────────────────────────┐\033[0m"
-    echo -e "              DOMAIN MANAGER"
-    echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-    echo -e " [1] Change Domain (Host)"
-    echo -e " [2] Renew Certificate (SSL)"
-    echo ""
-    read -p " Select: " domopt
-    if [[ $domopt == "1" ]]; then
-        read -p "Input New Domain: " newdom
-        echo "$newdom" > /etc/xray/domain
-        echo "$newdom" > /root/domain
-        echo -e "\033[0;32mDomain updated to $newdom. Please Renew Certificate now.\033[0m"
-        read -n 1 -s -r -p "Press any key..."
-        menu-set.sh
-    elif [[ $domopt == "2" ]]; then
-        echo -e "\033[0;32mStopping services...\033[0m"
-        systemctl stop xray
-        systemctl stop ws-proxy  
-        /root/.acme.sh/acme.sh --issue -d $domain --standalone -k ec-256 --force
-        /root/.acme.sh/acme.sh --installcert -d $domain --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}               DOMAIN & SSL MANAGER                   ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Change Server Domain (Host)"
+    echo -e "  ${GREEN}[2]${NC} Renew Let's Encrypt Certificate (SSL)"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " dom_opt
+    
+    if [ "$dom_opt" == "1" ]; then
+        read -p " Input New Domain: " new_domain
+        if [[ -n "$new_domain" ]]; then
+            echo "$new_domain" > /etc/xray/domain
+            echo "$new_domain" > /root/domain
+            echo -e "${GREEN}Domain updated to $new_domain. Please Renew Certificate next.${NC}"
+        fi
+        sleep 2; menu-set.sh
+    elif [ "$dom_opt" == "2" ]; then
+        domain=$(cat /etc/xray/domain)
+        echo -e "${YELLOW}Stopping services for Acme.sh standalone...${NC}"
+        systemctl stop nginx
+        systemctl stop ws-proxy 2>/dev/null
+        
+        /root/.acme.sh/acme.sh --issue -d "$domain" --standalone -k ec-256 --force
+        /root/.acme.sh/acme.sh --installcert -d "$domain" --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc
         chmod 644 /etc/xray/xray.key
-        systemctl start xray
-        systemctl start ws-proxy
-        echo -e "\033[0;32mCertificate Renewed!\033[0m"
-        read -n 1 -s -r -p "Press any key..."
+        
+        systemctl start nginx
+        systemctl start ws-proxy 2>/dev/null
+        systemctl restart xray stunnel4
+        echo -e "${GREEN}Certificate Renewed & Services Restarted!${NC}"
+        read -n 1 -s -r -p "Press any key to back..."
         menu-set.sh
     fi
-    ;;
-2|02)
+}
+
+# ==========================================
+# 2. PORT INFO & SERVER STATUS
+# ==========================================
+port_info() {
     clear
-    echo -e "\033[0;32mRunning Speedtest...\033[0m"
-    speedtest-cli --simple
-    echo ""
-    read -n 1 -s -r -p "Press any key to back..."
-    menu-set.sh
-    ;;
-3|03)
-    clear
-    echo -e "\033[0;34m====================-[ THETECHSAVAGE TUNNEL ]-===================\033[0m"
-    echo -e ">>> Service & Port"
+    domain=$(cat /etc/xray/domain 2>/dev/null)
+    echo -e "${CYAN}====================-[ THETECHSAVAGE TUNNEL ]-===================${NC}"
+    echo -e "${YELLOW}>>> Service & Port${NC}"
     echo -e " - OpenSSH            : 22"
     echo -e " - Dropbear           : 109, 143"
     echo -e " - Stunnel4           : 447, 777"
-    echo -e " - Xray Vless TLS     : 443"
-    echo -e " - Xray Vmess TLS     : 443"
-    echo -e " - Xray Trojan TLS    : 443"
-    echo -e " - SlowDNS            : 53, 5300"
+    echo -e " - Universal Proxy    : 8080"
+    echo -e " - Xray VMess/VLESS   : 443"
+    echo -e " - Xray Trojan/SS     : 443"
+    echo -e " - Hysteria2 (UDP)    : 443"
+    echo -e " - SlowDNS (DNSTT)    : 53, 5300"
+    echo -e " - OpenVPN (DL)       : 81"
     echo -e ""
-    echo -e ">>> Server Status"
+    echo -e "${YELLOW}>>> Server Status${NC}"
     echo -e " - IP Address         : $MYIP"
     echo -e " - Domain             : $domain"
     echo -e " - Timezone           : $(date +%Z)"
-    echo -e " - Auto-Reboot        : [ON]"
-    echo -e "\033[0;34m=================================================================\033[0m"
+    echo -e "${CYAN}=================================================================${NC}"
     read -n 1 -s -r -p "Press any key to back..."
     menu-set.sh
-    ;;
-4|04)
+}
+
+# ==========================================
+# 3. SERVICE RESTART MANAGER
+# ==========================================
+restart_services() {
     clear
-    echo -e "\033[0;34m┌─────────────────────────────────────────────────────┐\033[0m"
-    echo -e "           AUTO-REBOOT SETTINGS (INTERVAL)"
-    echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-    echo -e " [1] Every 1 Hour"
-    echo -e " [2] Every 6 Hours"
-    echo -e " [3] Every 12 Hours"
-    echo -e " [4] Every 24 Hours (Daily)"
-    echo -e " [5] Turn OFF Auto-Reboot"
-    echo ""
-    read -p " Select: " x
-    if [[ "$x" == "1" ]]; then
-        echo "0 * * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
-    elif [[ "$x" == "2" ]]; then
-        echo "0 */6 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
-    elif [[ "$x" == "3" ]]; then
-        echo "0 */12 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
-    elif [[ "$x" == "4" ]]; then
-        echo "0 0 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
-    elif [[ "$x" == "5" ]]; then
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                 SERVICE MANAGER                      ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Restart All Services"
+    echo -e "  ${GREEN}[2]${NC} Restart Xray Core"
+    echo -e "  ${GREEN}[3]${NC} Restart Nginx"
+    echo -e "  ${GREEN}[4]${NC} Restart SSH & Dropbear"
+    echo -e "  ${GREEN}[5]${NC} Restart SlowDNS"
+    echo -e "  ${GREEN}[6]${NC} Restart Telegram Bot"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " res_opt
+    
+    case $res_opt in
+        1) systemctl restart dropbear stunnel4 xray client-slow ws-proxy ohp cron nginx tg-bot; echo -e "${GREEN}All Services Restarted!${NC}" ;;
+        2) systemctl restart xray; echo -e "${GREEN}Xray Restarted!${NC}" ;;
+        3) systemctl restart nginx; echo -e "${GREEN}Nginx Restarted!${NC}" ;;
+        4) systemctl restart ssh dropbear; echo -e "${GREEN}SSH/Dropbear Restarted!${NC}" ;;
+        5) systemctl restart client-slow; echo -e "${GREEN}SlowDNS Restarted!${NC}" ;;
+        6) systemctl restart tg-bot; echo -e "${GREEN}Telegram Bot Restarted!${NC}" ;;
+    esac
+    sleep 2; menu-set.sh
+}
+
+# ==========================================
+# 4. SAFE XRAY CONFIG EDITOR
+# ==========================================
+xray_editor() {
+    clear
+    CONFIG="/usr/local/etc/xray/config.json"
+    BACKUP="/tmp/config.json.editor.bak"
+    
+    echo -e "${YELLOW}Opening Xray Config in Nano...${NC}"
+    sleep 1
+    cp "$CONFIG" "$BACKUP"
+    nano "$CONFIG"
+    
+    echo -e "${BLUE}[*] Validating JSON syntax...${NC}"
+    if jq . "$CONFIG" >/dev/null 2>&1; then
+        echo -e "${GREEN}[✔] Syntax perfectly valid! Restarting Xray...${NC}"
+        systemctl restart xray
+    else
+        echo -e "${RED}[✘] CRITICAL: JSON syntax is broken!${NC}"
+        echo -e "${YELLOW}[!] Reverting to backup to prevent server crash...${NC}"
+        cp "$BACKUP" "$CONFIG"
+        systemctl restart xray
+    fi
+    sleep 3; menu-set.sh
+}
+
+# ==========================================
+# 5. FIREWALL MANAGER (UFW)
+# ==========================================
+firewall_manager() {
+    clear
+    if ! command -v ufw &> /dev/null; then apt install ufw -y >/dev/null 2>&1; fi
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                 FIREWALL (UFW) MANAGER               ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Enable & Apply Default VPN Rules"
+    echo -e "  ${GREEN}[2]${NC} Disable Firewall"
+    echo -e "  ${GREEN}[3]${NC} View Active Status"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " fw_opt
+
+    case $fw_opt in
+        1)
+            echo -e "${YELLOW}Applying VPN Port Whitelists...${NC}"
+            ufw --force reset; ufw default deny incoming; ufw default allow outgoing
+            ufw allow 22/tcp; ufw allow 109/tcp; ufw allow 143/tcp
+            ufw allow 80/tcp; ufw allow 81/tcp; ufw allow 443/tcp; ufw allow 447/tcp; ufw allow 777/tcp
+            ufw allow 8080/tcp; ufw allow 53/udp; ufw allow 5300/udp
+            ufw --force enable
+            echo -e "${GREEN}Default VPN Rules Applied!${NC}" ;;
+        2) ufw disable; echo -e "${RED}Firewall Disabled!${NC}" ;;
+        3) ufw status numbered; echo ""; read -n 1 -s -r -p "Press any key..." ;;
+    esac
+    sleep 2; menu-set.sh
+}
+
+# ==========================================
+# 6. DNS CHANGER
+# ==========================================
+dns_changer() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                 SYSTEM DNS CHANGER                   ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Cloudflare (1.1.1.1 / 1.0.0.1) ${YELLOW}[Fastest]${NC}"
+    echo -e "  ${GREEN}[2]${NC} Google DNS (8.8.8.8 / 8.8.4.4)"
+    echo -e "  ${GREEN}[3]${NC} Quad9 Security (9.9.9.9)"
+    echo -e "  ${GREEN}[4]${NC} Restore System Default"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " dns_opt
+    
+    CONF="/etc/systemd/resolved.conf"
+    case $dns_opt in
+        1) sed -i 's/^#*DNS=.*/DNS=1.1.1.1 1.0.0.1/' $CONF ;;
+        2) sed -i 's/^#*DNS=.*/DNS=8.8.8.8 8.8.4.4/' $CONF ;;
+        3) sed -i 's/^#*DNS=.*/DNS=9.9.9.9 149.112.112.112/' $CONF ;;
+        4) sed -i 's/^#*DNS=.*/#DNS=/' $CONF ;;
+    esac
+    systemctl restart systemd-resolved
+    echo -e "${GREEN}[✔] DNS Updated Successfully!${NC}"
+    sleep 2; menu-set.sh
+}
+
+# ==========================================
+# 7. AUTO-REBOOT MENU
+# ==========================================
+auto_reboot() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                  AUTO-REBOOT MANAGER                 ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Set Interval (e.g. Every 6 Hours)"
+    echo -e "  ${GREEN}[2]${NC} Set Specific Time (e.g. Midnight)"
+    echo -e "  ${GREEN}[3]${NC} Turn OFF Auto-Reboot"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " reb_opt
+    
+    if [[ "$reb_opt" == "1" ]]; then
+        echo -e " [1] 1 Hour  [2] 6 Hours  [3] 12 Hours  [4] 24 Hours"
+        read -p " Select: " x
+        if [[ "$x" == "1" ]]; then echo "0 * * * * root /sbin/reboot" > /etc/cron.d/auto_reboot; fi
+        if [[ "$x" == "2" ]]; then echo "0 */6 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot; fi
+        if [[ "$x" == "3" ]]; then echo "0 */12 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot; fi
+        if [[ "$x" == "4" ]]; then echo "0 0 * * * root /sbin/reboot" > /etc/cron.d/auto_reboot; fi
+        echo -e "${GREEN}Interval updated!${NC}"; sleep 2; menu-set.sh
+    elif [[ "$reb_opt" == "2" ]]; then
+        read -p " Input hour (0-23): " hour
+        if [[ "$hour" =~ ^[0-9]+$ ]] && [ "$hour" -ge 0 ] && [ "$hour" -le 23 ]; then
+            echo "0 $hour * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
+            echo -e "${GREEN}Server will reboot daily at $hour:00${NC}"
+        else echo -e "${RED}Invalid Number!${NC}"; fi
+        sleep 2; menu-set.sh
+    elif [[ "$reb_opt" == "3" ]]; then
         rm -f /etc/cron.d/auto_reboot
+        echo -e "${RED}Auto-Reboot Disabled!${NC}"; sleep 2; menu-set.sh
     fi
     service cron restart
-    echo -e "\033[0;32mAuto-Reboot updated!\033[0m"
-    sleep 2
-    menu-set.sh
-    ;;
-5|05)
+}
+
+# ==========================================
+# 8. BANDWIDTH MONITOR (VNSTAT)
+# ==========================================
+bandwidth_monitor() {
     clear
-    echo -e "\033[0;34m┌─────────────────────────────────────────────────────┐\033[0m"
-    echo -e "           AUTO-REBOOT SETTINGS (SPECIFIC TIME)"
-    echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-    echo -e " Example: 0 = Midnight, 13 = 1 PM, 23 = 11 PM"
-    echo ""
-    read -p " Input hour (0-23): " hour
-    if [[ "$hour" =~ ^[0-9]+$ ]] && [ "$hour" -ge 0 ] && [ "$hour" -le 23 ]; then
-        echo "0 $hour * * * root /sbin/reboot" > /etc/cron.d/auto_reboot
-        service cron restart
-        echo -e "\033[0;32mServer will reboot daily at $hour:00\033[0m"
-    else
-        echo -e "\033[0;31mInvalid Number!\033[0m"
-    fi
-    sleep 2
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                  BANDWIDTH MONITOR                   ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${GREEN}[1]${NC} Live Traffic"
+    echo -e "  ${GREEN}[2]${NC} Daily Usage"
+    echo -e "  ${GREEN}[3]${NC} Monthly Usage"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " bw
+    if [[ $bw == "1" ]]; then vnstat -l; elif [[ $bw == "2" ]]; then vnstat -d; elif [[ $bw == "3" ]]; then vnstat -m; fi
+    echo ""; read -n 1 -s -r -p "Press any key to back..."
     menu-set.sh
-    ;;
-6|06)
-    clear
-    echo -e "\033[0;32mRestarting All Services...\033[0m"
-    systemctl restart dropbear
-    systemctl restart stunnel4
-    systemctl restart xray
-    systemctl restart client-slow
-    systemctl restart ws-proxy   
-    systemctl restart ohp
-    systemctl restart cron
-    echo -e "\033[0;32mAll Services Restarted Successfully!\033[0m"
-    read -n 1 -s -r -p "Press any key to back..."
-    menu-set.sh
-    ;;
-7|07)
-    nano /etc/issue.net
-    service dropbear restart
-    echo -e "\033[0;32mBanner Saved and Applied!\033[0m"
-    read -n 1 -s -r -p "Press any key to back..."
-    menu-set.sh
-    ;;
-8|08)
-    clear
-    echo -e "\033[0;34m┌─────────────────────────────────────────────────────┐\033[0m"
-    echo -e "                  BANDWIDTH MONITOR"
-    echo -e "\033[0;34m└─────────────────────────────────────────────────────┘\033[0m"
-    echo -e " [1] Live Traffic"
-    echo -e " [2] Daily Usage"
-    echo -e " [3] Monthly Usage"
-    echo ""
-    read -p " Select: " bw
-    if [[ $bw == "1" ]]; then
-        vnstat -l
-    elif [[ $bw == "2" ]]; then
-        vnstat -d
-    elif [[ $bw == "3" ]]; then
-        vnstat -m
-    fi
-    echo ""
-    read -n 1 -s -r -p "Press any key to back..."
-    menu-set.sh
-    ;;
-9|09)
-    health-check
-    echo ""
-    read -n 1 -s -r -p "Press any key to back..."
-    menu-set.sh
-    ;;
-0|00)
-    menu
-    ;;
-*)
-    menu-set.sh
-    ;;
+}
+
+# ==========================================
+# MAIN SETTINGS UI (DUAL COLUMN)
+# ==========================================
+clear
+echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}                 SYSTEM SETTINGS MENU                 ${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "  ${GREEN}[01]${NC} Domain & SSL       ${GREEN}[07]${NC} Change SSH Banner"
+echo -e "  ${GREEN}[02]${NC} Port Info List     ${GREEN}[08]${NC} Check Bandwidth"
+echo -e "  ${GREEN}[03]${NC} Service Restarts   ${GREEN}[09]${NC} Speedtest VPS"
+echo -e "  ${GREEN}[04]${NC} Xray Editor        ${GREEN}[10]${NC} System Cache Cleaner"
+echo -e "  ${GREEN}[05]${NC} Firewall (UFW)     ${GREEN}[11]${NC} Auto-Reboot Settings"
+echo -e "  ${GREEN}[06]${NC} DNS Changer        ${GREEN}[12]${NC} Server Health Check"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+echo -e "  ${GREEN}[00]${NC} Back to Main Menu"
+echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+read -p " Select menu : " opt
+
+case $opt in
+    1|01) domain_manager ;;
+    2|02) port_info ;;
+    3|03) restart_services ;;
+    4|04) xray_editor ;;
+    5|05) firewall_manager ;;
+    6|06) dns_changer ;;
+    7|07) nano /etc/issue.net; systemctl restart dropbear ssh; echo -e "${GREEN}Banner Applied!${NC}"; sleep 2; menu-set.sh ;;
+    8|08) bandwidth_monitor ;;
+    9|09) clear; speedtest-cli --simple; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
+    10) cleaner ;;
+    11) auto_reboot ;;
+    12) health-check; echo ""; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
+    0|00) menu ;;
+    *) echo -e "${RED}Invalid Option${NC}"; sleep 1; menu-set.sh ;;
 esac

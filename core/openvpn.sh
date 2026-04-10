@@ -7,7 +7,8 @@ MYIP=$(curl -sS ifconfig.me)
 
 echo -e " [INFO] Installing OpenVPN and Easy-RSA..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y openvpn easy-rsa iptables-persistent > /dev/null 2>&1
+apt-get install -y openvpn easy-rsa iptables-persistent libpam0g-dev openvpn-auth-pam > /dev/null 2>&1
+
 
 echo -e " [INFO] Generating Cryptographic Keys (Takes ~1 minute)..."
 make-cadir /etc/openvpn/easy-rsa
@@ -101,7 +102,7 @@ chmod 644 /var/www/html/ovpn/client-tcp.ovpn
 
 cat > /etc/nginx/conf.d/ovpn-download.conf <<EOF
 server {
-    listen 85;
+    listen 81;
     server_name _;
     root /var/www/html/ovpn;
     autoindex on;

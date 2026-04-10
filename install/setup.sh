@@ -355,6 +355,8 @@ chmod +x /etc/slowdns/dnstt-server
 print_info "Generating Unique Master Keys for this Server..."
 # Generate a fresh pair of Curve25519 keys
 /etc/slowdns/dnstt-server -gen-key -privkey-file /etc/slowdns/server.key -pubkey-file /etc/slowdns/server.pub
+sync
+sleep 1
 
 # Secure the private key so only root can read it
 chmod 600 /etc/slowdns/server.key
@@ -425,13 +427,14 @@ wget -q -O /etc/xray/proxy.py "${REPO_URL}/core/proxy.py"
 # -----------------------------------------------------
 # CREATING TELEGRAM BOT SERVICE
 # -----------------------------------------------------
-# Check if the user actually configured Telegram earlier
 TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)
 
 if [[ -n "$TG_TOKEN" ]]; then
-    print_info "Installing Telegram Bot Dependencies..."
-    # We use --break-system-packages to bypass Ubuntu 24.04 strict pip rules
-    pip3 install pyTelegramBotAPI --break-system-packages > /dev/null 2>&1 || pip3 install pyTelegramBotAPI > /dev/null 2>&1
+    print_info "Setting up Python Virtual Environment for Bot..."
+    # 🚨 THE FIX: Use venv instead of breaking system packages!
+    apt install -y python3-venv > /dev/null 2>&1
+    python3 -m venv /etc/xray/venv
+    /etc/xray/venv/bin/pip install pyTelegramBotAPI > /dev/null 2>&1
 
     print_info "Downloading Telegram Bot Script..."
     wget -q -O /etc/xray/tgbot.py "${REPO_URL}/core/tgbot.py"
@@ -446,7 +449,8 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/xray
-ExecStart=/usr/bin/python3 /etc/xray/tgbot.py
+# 🚨 THE FIX: Run the bot securely inside the isolated venv
+ExecStart=/etc/xray/venv/bin/python /etc/xray/tgbot.py
 Restart=always
 
 [Install]
@@ -456,10 +460,11 @@ EOF
     systemctl daemon-reload
     systemctl enable tg-bot
     systemctl restart tg-bot
-    print_success "Telegram Bot Service Configured and Started!"
+    print_success "Telegram Bot Service Configured securely!"
 else
     print_info "Skipping Telegram Bot Service (No Token Provided)."
 fi
+
 # -----------------------------------------------------
 
 # -----------------------------------------------------
@@ -584,6 +589,8 @@ systemctl restart stunnel4
 # Cronjobs
 echo "0 0 * * * root /usr/bin/xp" > /etc/cron.d/xp
 echo "*/5 * * * * root /usr/bin/tendang" > /etc/cron.d/tendang
+echo "0 0 1 * * root systemctl restart stunnel4 nginx xray" > /etc/cron.d/cert_reload
+
 service cron restart
 print_success "Services Started."
 

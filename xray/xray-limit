@@ -1,0 +1,31 @@
+#!/bin/bash
+# --- TheTechSavage Xray Multi-Login Enforcer ---
+
+LOG_FILE="/var/log/xray/access.log"
+
+# Loop through all Xray limit directories
+for protocol in vmess vless trojan shadowsocks hysteria; do
+    if [ -d "/etc/xray/limit/$protocol" ]; then
+        
+        for user_file in /etc/xray/limit/$protocol/*; do
+            [ -e "$user_file" ] || continue
+            
+            user=$(basename "$user_file")
+            limit=$(cat "$user_file")
+            
+            # Count UNIQUE IPs connected to this user in the recent log buffer
+            # We strip the port from the IP to get the base address
+            ip_count=$(tail -n 1000 "$LOG_FILE" | grep "accepted" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort -u | wc -l)
+            
+            if [[ "$ip_count" -gt "$limit" ]]; then
+                # User is violating the limit!
+                echo "$(date): $user ($protocol) exceeded limit! IPs: $ip_count/$limit" >> /var/log/xray-autokill.log
+                
+                # TEMPORARY LOCK: We lock the account by turning the user tag into a disabled string, effectively killing their connection on the next Xray reload.
+                # To restore them automatically later, we append [LOCKED]
+                sed -i "s/\"email\": \"$user\"/\"email\": \"$user-LOCKED\"/g" /usr/local/etc/xray/config.json
+                systemctl restart xray
+            fi
+        done
+    fi
+done
