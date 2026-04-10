@@ -66,7 +66,7 @@
           "path": "/trojan-ws"
         }
       }
-    }, 
+    },
     {
       "port": 10004,
       "listen": "127.0.0.1",
@@ -86,32 +86,6 @@
         "network": "ws",
         "wsSettings": {
           "path": "/ss-ws"
-        }
-      }
-    },
-    {
-      "port": 443,
-      "protocol": "hysteria2",
-      "settings": {
-        "users": [
-          {
-            "password": "default_hy2",
-            "email": "default_hy2"
-          }
-          // #hy2
-        ],
-        "ignoreClientBandwidth": false
-      },
-      "streamSettings": {
-        "network": "quic",
-        "security": "tls",
-        "tlsSettings": {
-          "certificates": [
-            {
-              "certificateFile": "/etc/xray/xray.crt",
-              "keyFile": "/etc/xray/xray.key"
-            }
-          ]
         }
       }
     }
