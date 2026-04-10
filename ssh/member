@@ -1,5 +1,5 @@
 #!/bin/bash
-# --- TheTechSavage Premium User List (Filtered) ---
+# --- Premium User List (Filtered) ---
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

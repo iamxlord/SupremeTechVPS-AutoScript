@@ -1,5 +1,5 @@
 #!/bin/bash
-# --- TheTechSavage Smart Restore (Cross-Cloud Compatible) ---
+# --- Smart Restore (Cross-Cloud Compatible) ---
 
 clear
 echo -e "\033[0;32m=== SMART RESTORE (ANY VPS) ===\033[0m"

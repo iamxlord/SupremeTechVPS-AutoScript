@@ -1,5 +1,5 @@
 #!/bin/bash
-# --- TheTechSavage Trial Generator (Premium Style) ---
+# --- Trial Generator (Premium Style) ---
 
 clear
 echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"

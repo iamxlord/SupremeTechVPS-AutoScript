@@ -18,6 +18,30 @@ NC='\033[0m'
 MYIP=$(curl -sS ifconfig.me)
 
 # ==========================================
+# CUSTOM PROXY RESPONSE CHANGER
+# ==========================================
+proxy_response_changer() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}             CUSTOM PROXY RESPONSE EDITOR             ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    
+    current=$(cat /etc/xray/proxy_resp.txt 2>/dev/null || echo "Switching Protocols")
+    echo -e " Current Response: ${GREEN}HTTP/1.1 101 $current${NC}"
+    echo -e ""
+    echo -e " Example: SupremeTech, Connected"
+    read -p " Enter New Text (Leave blank to cancel): " new_resp
+    
+    if [[ -n "$new_resp" ]]; then
+        echo "$new_resp" > /etc/xray/proxy_resp.txt
+        systemctl restart ws-proxy
+        echo -e "${GREEN}[✔] Response Updated to: HTTP/1.1 101 $new_resp${NC}"
+        echo -e "${GREEN}[✔] Python Proxy Restarted!${NC}"
+    fi
+    sleep 2; menu-set.sh
+}
+
+# ==========================================
 # 1. DOMAIN MANAGER
 # ==========================================
 domain_manager() {
@@ -63,7 +87,7 @@ domain_manager() {
 port_info() {
     clear
     domain=$(cat /etc/xray/domain 2>/dev/null)
-    echo -e "${CYAN}====================-[ THETECHSAVAGE TUNNEL ]-===================${NC}"
+    echo -e "${CYAN}====================-[ X TUNNEL ]-===================${NC}"
     echo -e "${YELLOW}>>> Service & Port${NC}"
     echo -e " - OpenSSH            : 22"
     echo -e " - Dropbear           : 109, 143"
@@ -279,7 +303,8 @@ case $opt in
     9|09) clear; speedtest-cli --simple; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
     10) cleaner ;;
     11) auto_reboot ;;
-    12) health-check; echo ""; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
+    12) proxy_response_changer ;;
+    13) health-check; echo ""; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
     0|00) menu ;;
     *) echo -e "${RED}Invalid Option${NC}"; sleep 1; menu-set.sh ;;
 esac

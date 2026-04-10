@@ -1,5 +1,5 @@
 #!/bin/bash
-# --- TheTechSavage Auto-Delete Expired Users ---
+# ---  Auto-Delete Expired Users ---
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

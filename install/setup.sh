@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-#  TheTechSavage Universal Auto-Installer
+#  Supreme-Tech Universal Auto-Installer
 #  Premium Edition - v3.5 (Verified Stable)
 # ==========================================
 
