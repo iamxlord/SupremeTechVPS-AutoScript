@@ -102,7 +102,7 @@ chmod 644 /var/www/html/ovpn/client-tcp.ovpn
 
 cat > /etc/nginx/conf.d/ovpn-download.conf <<EOF
 server {
-    listen 81;
+    listen 85;
     server_name _;
     root /var/www/html/ovpn;
     autoindex on;

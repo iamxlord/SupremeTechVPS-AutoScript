@@ -133,7 +133,7 @@ SSH-WS       : `80`
 SSH-WSS      : `443`
 Univ. Proxy  : `8080`
 SSL/TLS      : `447, 777`
-OVPN         : `http://{domain}:81/client-tcp.ovpn`
+OVPN         : `http://{domain}:85/client-tcp.ovpn`
 
 *--- PAYLOAD EXAMPLES ---*
 *WebSocket (WS/WSS):*

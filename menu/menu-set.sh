@@ -157,7 +157,7 @@ firewall_manager() {
         1)
             echo -e "${YELLOW}Applying VPN Port Whitelists...${NC}"
             ufw --force reset; ufw default deny incoming; ufw default allow outgoing
-            ufw allow 22/tcp; ufw allow 109/tcp; ufw allow 143/tcp
+            ufw allow 22/tcp; ufw allow 109/tcp; ufw allow 85/tcp; ufw allow 143/tcp
             ufw allow 80/tcp; ufw allow 81/tcp; ufw allow 443/tcp; ufw allow 447/tcp; ufw allow 777/tcp
             ufw allow 8080/tcp; ufw allow 53/udp; ufw allow 5300/udp
             ufw --force enable
