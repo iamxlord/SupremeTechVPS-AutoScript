@@ -39,13 +39,30 @@ else
     REBOOT_TIME="${AUTOREB} (Daily)"
 fi
 
-# --- REAL-TIME COUNTERS ---
+# --- REAL-TIME COUNTERS (BUG-FREE) ---
 SSH_COUNT=$(awk -F: '$3 >= 1000 && $1 != "nobody" && ($7 == "/bin/false" || $7 == "/usr/sbin/nologin" || $7 == "/bin/true") {print $1}' /etc/passwd | wc -l)
-VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null || echo "0")
-VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null || echo "0")
-TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null || echo "0")
-SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null || echo "0")
-HY2_COUNT=$(grep -c "// #hy " "$CONFIG" 2>/dev/null || echo "0")
+VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null)
+VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null)
+TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null)
+SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null)
+HY2_COUNT=$(grep -c "// #hy " "$CONFIG" 2>/dev/null)
+
+# Prevent empty variables from breaking the UI
+[[ -z "$VMESS_COUNT" ]] && VMESS_COUNT=0
+[[ -z "$VLESS_COUNT" ]] && VLESS_COUNT=0
+[[ -z "$TROJAN_COUNT" ]] && TROJAN_COUNT=0
+[[ -z "$SS_COUNT" ]] && SS_COUNT=0
+[[ -z "$HY2_COUNT" ]] && HY2_COUNT=0
+
+# Format with perfect fixed spacing
+pad_ssh=$(printf "%-5s" "$SSH_COUNT")
+pad_vmess=$(printf "%-5s" "$VMESS_COUNT")
+pad_vless=$(printf "%-5s" "$VLESS_COUNT")
+pad_trj=$(printf "%-5s" "$TROJAN_COUNT")
+pad_ss=$(printf "%-5s" "$SS_COUNT")
+pad_hy2=$(printf "%-5s" "$HY2_COUNT")
+
+# ... [Keep your Service Check Function & Bandwidth Monitor here] ...
 
 # Service Check Function
 status_check() {
@@ -83,11 +100,14 @@ echo -e "${CYAN}└────────────────────�
 echo -e "    Use Core        :  Xray-Core 2023"
 echo -e "    IP-VPS          :  $MYIP"
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
-echo -e "    SUPREMETECH AUTOSCRIPT"
+echo -e "                         SUPREMETECH AUTOSCRIPT               "
+
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
-echo -e "  SSH : ${GREEN}$SSH_COUNT${NC}     VMESS : ${GREEN}$VMESS_COUNT${NC}     VLESS : ${GREEN}$VLESS_COUNT${NC}"
-echo -e "  TRJ : ${GREEN}$TROJAN_COUNT${NC}     SS-WS : ${GREEN}$SS_COUNT${NC}     HYST2 : ${GREEN}$HY2_COUNT${NC}"
+echo -e "  SSH   : ${GREEN}${pad_ssh}${NC}      VMESS : ${GREEN}${pad_vmess}${NC}"
+echo -e "  VLESS : ${GREEN}${pad_vless}${NC}      TRJ   : ${GREEN}${pad_trj}${NC}"
+echo -e "  SS-WS : ${GREEN}${pad_ss}${NC}      HYST2 : ${GREEN}${pad_hy2}${NC}"
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+
 echo -e "      SSH : $(status_check ssh)  NGINX : $(status_check nginx)   XRAY : $(status_check xray)"
 echo -e "        DROPBEAR : $(status_check dropbear)  SSH-WS : $(status_check ssh)"
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"

@@ -172,11 +172,21 @@ print_title "CONFIGURING DROPBEAR & SSH SAFEGUARDS"
 echo "/bin/false" >> /etc/shells
 echo "/usr/sbin/nologin" >> /etc/shells
 
-# 🚨 THE FIX: Forcefully ensure Root Login and Password Auth remain active!
+# Forcefully ensure Root Login and Password Auth remain active
 sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# Force OpenSSH to read the custom banner
+sed -i 's|^#Banner.*|Banner /etc/issue.net|' /etc/ssh/sshd_config
+sed -i 's|^Banner.*|Banner /etc/issue.net|' /etc/ssh/sshd_config
+
+# 🚨 THE FIX: Forcefully generate mathematically perfect Dropbear Keys
+print_info "Generating cryptographic host keys for Dropbear..."
+rm -f /etc/dropbear/dropbear_*_host_key
+dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key -s 2048 > /dev/null 2>&1
+dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key > /dev/null 2>&1
+dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key > /dev/null 2>&1
 
 # Create the SSH Recovery Cronjob (Failsafe)
 cat > /etc/cron.d/ssh_recovery <<EOF

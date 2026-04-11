@@ -220,6 +220,44 @@ dns_changer() {
 }
 
 # ==========================================
+# 7. SAFE BANNER CHANGER (Dropbear Crash Prevention)
+# ==========================================
+change_banner() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}                 SSH BANNER EDITOR                    ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e " ${RED}WARNING:${NC} Do not use massive ASCII art!"
+    echo -e " Dropbear will crash if the text is too large."
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -n 1 -s -r -p " Press any key to open editor..."
+
+    # 1. Backup existing banner just in case
+    cp /etc/issue.net /tmp/issue.net.bak
+
+    # 2. Open nano for editing
+    nano /etc/issue.net
+
+    # 3. Check the file size in bytes
+    FILE_SIZE=$(wc -c < /etc/issue.net)
+
+    # 4. Strict Enforcement (Max 1000 bytes)
+    if [[ $FILE_SIZE -gt 1000 ]]; then
+        echo -e "\n${RED}[✘] ERROR: Banner is too large! ($FILE_SIZE bytes)${NC}"
+        echo -e "${YELLOW}Dropbear requires banners to be strictly under 1000 bytes.${NC}"
+        echo -e "Reverting to previous banner to prevent a server crash..."
+        cp /tmp/issue.net.bak /etc/issue.net
+        sleep 4
+    else
+        echo -e "\n${GREEN}[✔] Banner saved safely ($FILE_SIZE bytes).${NC}"
+        systemctl restart dropbear ssh
+        echo -e "${GREEN}[✔] SSH & Dropbear Restarted Successfully!${NC}"
+        sleep 2
+    fi
+    menu-set.sh
+}
+
+# ==========================================
 # 7. AUTO-REBOOT MENU
 # ==========================================
 auto_reboot() {
@@ -299,7 +337,7 @@ case $opt in
     4|04) xray_editor ;;
     5|05) firewall_manager ;;
     6|06) dns_changer ;;
-    7|07) nano /etc/issue.net; systemctl restart dropbear ssh; echo -e "${GREEN}Banner Applied!${NC}"; sleep 2; menu-set.sh ;;
+    7|07) change_banner ;;
     8|08) bandwidth_monitor ;;
     9|09) clear; speedtest-cli --simple; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
     10) cleaner ;;
