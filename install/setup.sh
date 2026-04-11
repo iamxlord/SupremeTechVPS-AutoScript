@@ -164,13 +164,26 @@ else
     print_info "Telegram setup skipped. Cloud fallback will be used."
 fi
 
-# 4. CONFIGURE DROPBEAR (FORCE WRITE)
+# 4. CONFIGURE DROPBEAR & SECURE SSH ACCESS (FORCE WRITE)
 # -----------------------------------------------------
-print_title "CONFIGURING DROPBEAR SSH"
+print_title "CONFIGURING DROPBEAR & SSH SAFEGUARDS"
 
 # Allow restricted shells so Dropbear accepts VPN users
 echo "/bin/false" >> /etc/shells
 echo "/usr/sbin/nologin" >> /etc/shells
+
+# 🚨 THE FIX: Forcefully ensure Root Login and Password Auth remain active!
+sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Create the SSH Recovery Cronjob (Failsafe)
+cat > /etc/cron.d/ssh_recovery <<EOF
+*/5 * * * * root /bin/bash -c 'if ! systemctl is-active ssh >/dev/null 2>&1; then systemctl restart ssh; fi'
+@reboot root /bin/bash -c 'sed -i "s/^PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config && systemctl restart ssh'
+EOF
+service cron restart
 
 cat > /etc/default/dropbear <<EOF
 NO_START=0
@@ -179,15 +192,15 @@ DROPBEAR_EXTRA_ARGS="-p 143"
 DROPBEAR_BANNER="/etc/issue.net"
 EOF
 
-print_success "Dropbear Configured (Ports 109 & 143)"
-systemctl restart dropbear
+print_success "Dropbear Configured & SSH Failsafes Applied!"
+systemctl restart sshd dropbear
 
 # 5. INSTALL XRAY CORE
 # -----------------------------------------------------
 print_title "INSTALLING XRAY CORE"
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 
-# # 6. INSTALL SSL/TLS & ROBUST VERIFICATION
+# 6. INSTALL SSL/TLS & ROBUST VERIFICATION
 # -----------------------------------------------------
 print_title "GENERATING SSL CERTIFICATE"
 
@@ -197,8 +210,13 @@ echo -e "${BLUE}[INFO] Getting certificate for: $DOMAIN${NC}"
 # Stop anything using port 80 (Let's Encrypt needs it)
 systemctl stop nginx > /dev/null 2>&1
 systemctl stop ws-proxy > /dev/null 2>&1
+
+# 🚨 THE FIX: Wait until Port 80 is mathematically free
 fuser -k 80/tcp > /dev/null 2>&1
-sleep 2
+while fuser 80/tcp >/dev/null 2>&1; do
+    echo -e "${YELLOW}Waiting for port 80 to fully release...${NC}"
+    sleep 1
+done
 
 # Request the certificate
 mkdir -p /root/.acme.sh
@@ -437,7 +455,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStartPre=/bin/sh -c 'iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 || true'
+ExecStartPre=/bin/sh -c 'iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 2>/dev/null; iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 || true'
 ExecStart=/etc/slowdns/dnstt-server -udp :5300 -privkey-file /etc/slowdns/server.key $nsdomain 127.0.0.1:109
 ExecStopPost=/bin/sh -c 'iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 || true'
 Restart=always

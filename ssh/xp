@@ -1,95 +1,81 @@
 #!/bin/bash
 # --- Mr. X Universal Auto-Expiry & JSON Validator ---
 
-CONFIG="/usr/local/etc/xray/config.json"
-BACKUP="/tmp/config.json.bak"
-HY_CONFIG="/etc/hysteria/config.yaml"
-HY_EXP="/etc/hysteria/exp.txt"
-today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
+# 🚨 THE FIX: Wrap the entire script in a File Lock to prevent Race Conditions
+(
+    flock -x 200
+    
+    CONFIG="/usr/local/etc/xray/config.json"
+    BACKUP="/tmp/config.json.bak"
+    HY_CONFIG="/etc/hysteria/config.yaml"
+    HY_EXP="/etc/hysteria/exp.txt"
+    today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
 
-echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
+    echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
 
-# 1. SSH Expiry Check (Preserved)
-awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
-    expiration=$(chage -l $user 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
-    if [[ "$expiration" != "never" && -n "$expiration" ]]; then
-        exp_date_sec=$(date -d "$expiration" +%s 2>/dev/null)
-        if [[ -n "$exp_date_sec" && $exp_date_sec -lt $today_sec ]]; then
-            echo "Deleted Expired SSH: $user" >> /var/log/vpn-expiry.log
-            userdel -f $user 2>/dev/null
-            rm -f /etc/xray/limit/$user 2>/dev/null
-        fi
-    fi
-done
-
-# 2. Xray Expiry Check (VMess, VLESS, Trojan, SS)
-if [ -f "$CONFIG" ]; then
-    # Create a safe backup before ANY modifications
-    cp "$CONFIG" "$BACKUP"
-
-    # NOTE: Removed 'hy' from the grep tag list
-    grep -E "\/\/ #(##|vl|tr|ss) " "$CONFIG" | while read -r line; do
-        tag=$(echo "$line" | awk '{print $2}')
-        user=$(echo "$line" | awk '{print $3}')
-        exp=$(echo "$line" | awk '{print $4}')
-        
-        if [[ -n "$exp" ]]; then
-            exp_sec=$(date -d "$exp" +%s 2>/dev/null)
-            
-            if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
-                echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
-                
-                # Bounded deletion to prevent subset matching
-                sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
-                sed -i "/\/\/ $tag $user /d" "$CONFIG"
-                
-                # Cleanup limit files
-                rm -f /etc/xray/limit/vmess/$user \
-                      /etc/xray/limit/vless/$user \
-                      /etc/xray/limit/trojan/$user \
-                      /etc/xray/limit/shadowsocks/$user 2>/dev/null
+    # 1. SSH Expiry Check
+    awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
+        expiration=$(chage -l $user 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
+        if [[ "$expiration" != "never" && -n "$expiration" ]]; then
+            exp_date_sec=$(date -d "$expiration" +%s 2>/dev/null)
+            if [[ -n "$exp_date_sec" && $exp_date_sec -lt $today_sec ]]; then
+                echo "Deleted Expired SSH: $user" >> /var/log/vpn-expiry.log
+                userdel -f $user 2>/dev/null
+                rm -f /etc/xray/limit/$user 2>/dev/null
             fi
         fi
     done
-    
-    # Clean trailing commas safely
-    sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|vmess|vless|trojan-ws|ss-ws)/s/},/}/; P; D; }' "$CONFIG"
-    sed -i '/^\s*,\s*$/d' "$CONFIG"
 
-    # 🚨 XRAY JQ VALIDATOR 🚨
-    if command -v jq &> /dev/null; then
-        if jq . "$CONFIG" >/dev/null 2>&1; then
-            if systemctl is-active xray &>/dev/null; then
+    # 2. Xray Expiry Check 
+    if [ -f "$CONFIG" ]; then
+        cp "$CONFIG" "$BACKUP"
+
+        grep -E "\/\/ #(##|vl|tr|ss) " "$CONFIG" | while read -r line; do
+            tag=$(echo "$line" | awk '{print $2}')
+            user=$(echo "$line" | awk '{print $3}')
+            exp=$(echo "$line" | awk '{print $4}')
+            
+            if [[ -n "$exp" ]]; then
+                exp_sec=$(date -d "$exp" +%s 2>/dev/null)
+                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
+                    echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
+                    sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
+                    sed -i "/\/\/ $tag $user /d" "$CONFIG"
+                    rm -f /etc/xray/limit/vmess/$user /etc/xray/limit/vless/$user /etc/xray/limit/trojan/$user /etc/xray/limit/shadowsocks/$user 2>/dev/null
+                fi
+            fi
+        done
+        
+        sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|vmess|vless|trojan-ws|ss-ws)/s/},/}/; P; D; }' "$CONFIG"
+        sed -i '/^\s*,\s*$/d' "$CONFIG"
+
+        if command -v jq &> /dev/null; then
+            if jq . "$CONFIG" >/dev/null 2>&1; then
+                systemctl is-active --quiet xray && systemctl restart xray
+            else
+                cp "$BACKUP" "$CONFIG"
+                echo "CRITICAL: Xray JSON Corruption prevented." >> /var/log/vpn-expiry.log
                 systemctl restart xray
             fi
         else
-            cp "$BACKUP" "$CONFIG"
-            echo "CRITICAL: Xray JSON Corruption prevented. Reverted to backup." >> /var/log/vpn-expiry.log
             systemctl restart xray
         fi
-    else
-        systemctl restart xray
     fi
-fi
 
-# 3. Standalone Hysteria 2 Expiry Check
-if [ -f "$HY_EXP" ] && [ -f "$HY_CONFIG" ]; then
-    while IFS=: read -r hy_user hy_exp; do
-        if [[ -n "$hy_exp" ]]; then
-            exp_sec=$(date -d "$hy_exp" +%s 2>/dev/null)
-            
-            if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
-                echo "Deleted Expired Hysteria2: $hy_user" >> /var/log/vpn-expiry.log
-                
-                # Use pure jq to delete the user safely
-                jq "del(.auth.userpass[\"$hy_user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
-                
-                # Delete from Tracker and Limits
-                sed -i "/^$hy_user:/d" "$HY_EXP"
-                rm -f /etc/xray/limit/hysteria/$hy_user 2>/dev/null
-                
-                systemctl restart hysteria-server.service
+    # 3. Hysteria 2 Expiry Check
+    if [ -f "$HY_EXP" ] && [ -f "$HY_CONFIG" ]; then
+        while IFS=: read -r hy_user hy_exp; do
+            if [[ -n "$hy_exp" ]]; then
+                exp_sec=$(date -d "$hy_exp" +%s 2>/dev/null)
+                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
+                    echo "Deleted Expired Hysteria2: $hy_user" >> /var/log/vpn-expiry.log
+                    jq "del(.auth.userpass[\"$hy_user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
+                    sed -i "/^$hy_user:/d" "$HY_EXP"
+                    rm -f /etc/xray/limit/hysteria/$hy_user 2>/dev/null
+                    systemctl restart hysteria-server.service
+                fi
             fi
-        fi
-    done < "$HY_EXP"
-fi
+        done < "$HY_EXP"
+    fi
+
+) 200>/var/lock/xray-expiry.lock
