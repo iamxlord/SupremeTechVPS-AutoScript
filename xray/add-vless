@@ -31,13 +31,11 @@ while true; do
     fi
 done
 
-read -p " Expired    : " masaaktif
-if [[ -z "$masaaktif" ]]; then
-    masaaktif=30 # Default to 30 days
-fi
+read -p " Expired (Days): " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
 
-# Limit Logic (Hardcoded to 2)
-limit=2
+read -p " Max Login     : " limit
+[[ -z "$limit" ]] && limit=2
 
 # 2. PROCESS DATA
 uuid=$(cat /proc/sys/kernel/random/uuid)

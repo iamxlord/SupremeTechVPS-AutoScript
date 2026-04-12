@@ -163,6 +163,36 @@ else
     print_info "Telegram setup skipped. Cloud fallback will be used."
 fi
 
+# ==========================================
+# UNIVERSAL SAFETY NET (SSH & CLOUD AGENTS)
+# ==========================================
+print_info "Configuring Universal Safety Net..."
+
+# 1. Cloud-Specific Failsafes (Azure Auto-Detect)
+# Checks if the Azure Linux Agent is installed on this specific VPS
+if systemctl list-unit-files | grep -qw walinuxagent.service 2>/dev/null; then
+    print_info "Azure environment detected. Hardening waagent..."
+    mkdir -p /etc/systemd/system/walinuxagent.service.d
+    cat > /etc/systemd/system/walinuxagent.service.d/override.conf <<EOF
+[Service]
+Restart=always
+RestartSec=5
+EOF
+    systemctl daemon-reload
+    systemctl restart walinuxagent > /dev/null 2>&1 || true
+else
+    print_info "Non-Azure environment. Skipping waagent patch."
+fi
+
+# 2. Keep SSH Alive Under Heavy Server Load (Universal)
+# These keep-alives work perfectly on DigitalOcean, Vultr, Linode, AWS, etc.
+sed -i '/^ClientAliveInterval/d' /etc/ssh/sshd_config
+sed -i '/^ClientAliveCountMax/d' /etc/ssh/sshd_config
+echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
+echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
+
+print_success "Server Hardened & SSH Keep-Alives Injected!"
+
 # 4. CONFIGURE DROPBEAR & SECURE SSH ACCESS
 # -----------------------------------------------------
 print_title "CONFIGURING DROPBEAR & SSH SAFEGUARDS"
