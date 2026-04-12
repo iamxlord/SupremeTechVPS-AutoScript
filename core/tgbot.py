@@ -128,12 +128,16 @@ def process_execute(message):
 🔑 *PubKey:* `{pubkey}`
 
 *--- PORTS ---*
-SSH/Dropbear : `22, 109, 143`
-SSH-WS       : `80`
-SSH-WSS      : `443`
-Univ. Proxy  : `8080`
-SSL/TLS      : `447, 777`
-OVPN         : `http://{domain}:85/client-tcp.ovpn`
+SSH/Dropbear : 22, 109, 143
+SSH-WS       : 80
+SSH-WSS      : 443
+Univ. Proxy  : 8080
+SOCKS5 Proxy : 1080
+SSL/TLS      : 447, 777
+SlowDNS      : 53, 5300
+UDPGW        : 7100-7300
+OVPN TCP     : http://{domain}:85/client-tcp.ovpn
+OVPN UDP     : http://{domain}:85/client-udp.ovpn
 
 *--- PAYLOAD EXAMPLES ---*
 *WebSocket (WS/WSS):*

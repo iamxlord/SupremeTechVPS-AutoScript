@@ -494,6 +494,68 @@ chmod +x /tmp/openvpn.sh
 /tmp/openvpn.sh
 rm -f /tmp/openvpn.sh
 
+# 7.7 INSTALL BADVPN-UDPGW
+# -----------------------------------------------------
+print_title "INSTALLING BADVPN (UDPGW)"
+cd /tmp
+git clone https://github.com/ambrop72/badvpn.git > /dev/null 2>&1
+mkdir -p /tmp/badvpn/build
+cd /tmp/badvpn/build
+cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 > /dev/null 2>&1
+make > /dev/null 2>&1
+cp udpgw/badvpn-udpgw /usr/bin/
+chmod +x /usr/bin/badvpn-udpgw
+
+cat > /etc/systemd/system/udpgw.service <<EOF
+[Unit]
+Description=UDP Gateway (BadVPN)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 100
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable udpgw
+systemctl start udpgw
+print_success "BadVPN UDPGW Configured (Port 7300)!"
+
+# 7.8 INSTALL DANTE SOCKS5 PROXY
+# -----------------------------------------------------
+print_title "INSTALLING DANTE SOCKS5"
+apt-get install -y dante-server > /dev/null 2>&1
+
+NIC=$(ip -o -4 route show to default | awk '{print $5}')
+cat > /etc/danted.conf <<EOF
+logoutput: syslog
+internal: 0.0.0.0 port = 1080
+external: $NIC
+clientmethod: none
+socksmethod: username
+user.privileged: root
+user.notprivileged: nobody
+
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: error
+}
+socks pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: error
+}
+EOF
+
+systemctl restart danted
+systemctl enable danted
+print_success "Dante SOCKS5 Configured (Port 1080)!"
+
 # 8. DOWNLOAD FILES
 # -----------------------------------------------------
 print_title "DOWNLOADING SCRIPTS"

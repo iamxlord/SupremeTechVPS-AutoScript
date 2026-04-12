@@ -183,7 +183,7 @@ firewall_manager() {
             ufw --force reset; ufw default deny incoming; ufw default allow outgoing
             ufw allow 22/tcp; ufw allow 109/tcp; ufw allow 85/tcp; ufw allow 143/tcp
             ufw allow 80/tcp; ufw allow 81/tcp; ufw allow 443/tcp; ufw allow 447/tcp; ufw allow 777/tcp
-            ufw allow 8080/tcp; ufw allow 53/udp; ufw allow 5300/udp
+            ufw allow 8080/tcp; ufw allow 53/udp; ufw allow 5300/udp; ufw allow 1080/tcp; ufw allow 2200/udp
             ufw --force enable
             echo -e "${GREEN}Default VPN Rules Applied!${NC}" ;;
         2) ufw disable; echo -e "${RED}Firewall Disabled!${NC}" ;;

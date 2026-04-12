@@ -24,6 +24,18 @@ def handle_client(client_socket):
             
         request_str = request_data.decode('utf-8', errors='ignore')
         
+        # ==========================================
+        # 2. DYNAMIC PROTOCOL MATCHING (DPI EVASION)
+        # ==========================================
+        # Default to HTTP/1.1 if we cannot read the header
+        http_protocol = "HTTP/1.1" 
+        if request_str:
+            first_line = request_str.split('\r\n')[0]
+            parts = first_line.split(' ')
+            # Extracts "HTTP/1.0", "HTTP/1.1", "HTTP/2.0" straight from the client's payload
+            if len(parts) >= 3 and parts[2].startswith("HTTP/"):
+                http_protocol = parts[2].strip()
+        
         # Connect to backend SSH (Dropbear)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
@@ -36,7 +48,7 @@ def handle_client(client_socket):
         server_socket.connect(('127.0.0.1', SSH_PORT))
         
         # ==========================================
-        # 2. DYNAMIC CUSTOM HTTP 101 RESPONSE
+        # 3. DYNAMIC CUSTOM HTTP 101 RESPONSE
         # ==========================================
         custom_resp = "Switching Protocols"
         if os.path.exists(RESP_FILE):
@@ -46,8 +58,8 @@ def handle_client(client_socket):
                     if content: custom_resp = content
             except: pass
             
-        # Send the HTTP/1.1 101 Upgrade Handshake
-        response = f"HTTP/1.1 101 {custom_resp}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
+        # Send the exact protocol the client requested back to them
+        response = f"{http_protocol} 101 {custom_resp}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
         client_socket.sendall(response.encode('utf-8'))
             
         # TCP Pipelining Catch (Catches early Dropbear SSH handshakes hiding in HTTP headers)
@@ -59,7 +71,7 @@ def handle_client(client_socket):
             if leftover: server_socket.sendall(leftover)
                 
         # ==========================================
-        # 3. FULL-DUPLEX ADAPTIVE BUFFERING LOOP
+        # 4. FULL-DUPLEX ADAPTIVE BUFFERING LOOP
         # ==========================================
         while True:
             # 300-second idle timeout prevents dead "zombie" sockets from eating RAM
