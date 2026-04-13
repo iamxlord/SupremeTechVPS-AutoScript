@@ -1,59 +1,59 @@
 #!/bin/bash
 clear
-RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; [span_53](start_span)BLUE='\033[0;34m'[span_53](end_span)
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
-[span_54](start_span)echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"[span_54](end_span)
-[span_55](start_span)echo -e "${ORANGE}          DELETE SSH ACCOUNT              ${NC}"[span_55](end_span)
-[span_56](start_span)echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"[span_56](end_span)
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          DELETE SSH ACCOUNT              ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-[span_57](start_span)tmp_users="/tmp/ssh_users.txt"[span_57](end_span)
-> [span_58](start_span)"$tmp_users"[span_58](end_span)
+tmp_users="/tmp/ssh_users.txt"
+> "$tmp_users"
 
-[span_59](start_span)while IFS=: read -r username password uid gid info home shell; do[span_59](end_span)
-    [span_60](start_span)if [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then[span_60](end_span)
-        if [[ "$shell" == "/bin/false" || "$shell" == "/usr/sbin/nologin" || [span_61](start_span)"$shell" == "/bin/true" ]]; then[span_61](end_span)
-            [span_62](start_span)exp_raw=$(chage -l "$username" | grep "Account expires" | cut -d: -f2 | sed 's/^ //g')[span_62](end_span)
-            [span_63](start_span)if [[ "$exp_raw" == "never" ]]; then exp_display="Lifetime"; else exp_display=$(date -d "$exp_raw" "+%d-%b-%Y" 2>/dev/null); fi[span_63](end_span)
-            [span_64](start_span)echo "$username|$exp_display" >> "$tmp_users"[span_64](end_span)
-        [span_65](start_span)fi[span_65](end_span)
-    [span_66](start_span)fi[span_66](end_span)
-[span_67](start_span)done < /etc/passwd[span_67](end_span)
+while IFS=: read -r username password uid gid info home shell; do
+    if [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then
+        if [[ "$shell" == "/bin/false" || "$shell" == "/usr/sbin/nologin" || "$shell" == "/bin/true" ]]; then
+            exp_raw=$(chage -l "$username" | grep "Account expires" | cut -d: -f2 | sed 's/^ //g')
+            if [[ "$exp_raw" == "never" ]]; then exp_display="Lifetime"; else exp_display=$(date -d "$exp_raw" "+%d-%b-%Y" 2>/dev/null); fi
+            echo "$username|$exp_display" >> "$tmp_users"
+        fi
+    fi
+done < /etc/passwd
 
-if [[ ! -[span_68](start_span)s "$tmp_users" ]]; then[span_68](end_span)
-    [span_69](start_span)echo -e "${RED}Error: No SSH users found!${NC}"[span_69](end_span)
-    [span_70](start_span)rm -f "$tmp_users"; sleep 2; menu-ssh.sh; exit 1[span_70](end_span)
-[span_71](start_span)fi[span_71](end_span)
+if [[ ! -s "$tmp_users" ]]; then
+    echo -e "${RED}Error: No SSH users found!${NC}"
+    rm -f "$tmp_users"; sleep 2; menu-ssh.sh; exit 1
+fi
 
 echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
-[span_72](start_span)echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"[span_72](end_span)
-[span_73](start_span)echo -e " NO   USER          EXPIRES"[span_73](end_span)
-[span_74](start_span)echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"[span_74](end_span)
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-[span_75](start_span)i=1[span_75](end_span)
-[span_76](start_span)while IFS='|' read -r user exp; do[span_76](end_span)
-    printf " %-4s %-13s %-10s\n" "$i." [span_77](start_span)"$user" "$exp"[span_77](end_span)
-    ((i++)[span_78](start_span))
-done < "$tmp_users"[span_78](end_span)
-[span_79](start_span)echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"[span_79](end_span)
+i=1
+while IFS='|' read -r user exp; do
+    printf " %-4s %-13s %-10s\n" "$i." "$user" "$exp"
+    ((i++))
+done < "$tmp_users"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-[span_80](start_span)read -p " Select Number : " num[span_80](end_span)
+read -p " Select Number : " num
 
 # SAFETY CATCH: Trapdoor Exit
 if [[ "$num" == "0" ]]; then rm -f "$tmp_users"; menu-ssh.sh; exit 0; fi
 if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; rm -f "$tmp_users"; sleep 1; hapus; exit 1; fi
 
-[span_81](start_span)selected_line=$(sed -n "${num}p" "$tmp_users")[span_81](end_span)
-[span_82](start_span)user=$(echo "$selected_line" | cut -d'|' -f1)[span_82](end_span)
-[span_83](start_span)exp=$(echo "$selected_line" | cut -d'|' -f2)[span_83](end_span)
+selected_line=$(sed -n "${num}p" "$tmp_users")
+user=$(echo "$selected_line" | cut -d'|' -f1)
+exp=$(echo "$selected_line" | cut -d'|' -f2)
 
-[span_84](start_span)if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; rm -f "$tmp_users"; sleep 1; hapus; exit 1; fi[span_84](end_span)
+if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; rm -f "$tmp_users"; sleep 1; hapus; exit 1; fi
 
-[span_85](start_span)passwd -l "$user" > /dev/null 2>&1[span_85](end_span)
-[span_86](start_span)pkill -u "$user" > /dev/null 2>&1[span_86](end_span)
-[span_87](start_span)userdel -f "$user" > /dev/null 2>&1[span_87](end_span)
-[span_88](start_span)rm -f /etc/xray/limit/$user[span_88](end_span)
-[span_89](start_span)rm -f "$tmp_users"[span_89](end_span)
+passwd -l "$user" > /dev/null 2>&1
+pkill -u "$user" > /dev/null 2>&1
+userdel -f "$user" > /dev/null 2>&1
+rm -f /etc/xray/limit/$user
+rm -f "$tmp_users"
 
 echo -e "${GREEN}SSH ACCOUNT DELETED SUCCESSFULLY${NC}"
-[span_90](start_span)read -n 1 -s -r -p "Press any key to return..."[span_90](end_span)
-[span_91](start_span)menu-ssh.sh[span_91](end_span)
+read -n 1 -s -r -p "Press any key to return..."
+menu-ssh.sh

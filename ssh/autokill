@@ -12,7 +12,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${ORANGE}      AUTOKILL SETUP (SSH & XRAY)         ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# [span_0](start_span)Check Current Status[span_0](end_span)
+# Check Current Status
 if [[ -f /etc/cron.d/tendang ]]; then
     STATUS="${GREEN}ACTIVE${NC}"
 else
@@ -34,36 +34,36 @@ case $req in
         # Fires both SSH and Xray multi-login checkers
         echo -e "*/5 * * * * root /usr/bin/tendang\n*/5 * * * * root /usr/bin/xray-limit" > /etc/cron.d/tendang
         echo -e "${GREEN}AutoKill enabled (Every 5 Mins).${NC}"
-        [span_1](start_span)service cron restart[span_1](end_span)
+        service cron restart
         sleep 2
         ;;
     2)
         # Fires both SSH and Xray multi-login checkers
         echo -e "*/10 * * * * root /usr/bin/tendang\n*/10 * * * * root /usr/bin/xray-limit" > /etc/cron.d/tendang
         echo -e "${GREEN}AutoKill enabled (Every 10 Mins).${NC}"
-        [span_2](start_span)service cron restart[span_2](end_span)
+        service cron restart
         sleep 2
         ;;
     3)
         # Fires both SSH and Xray multi-login checkers
         echo -e "*/15 * * * * root /usr/bin/tendang\n*/15 * * * * root /usr/bin/xray-limit" > /etc/cron.d/tendang
         echo -e "${GREEN}AutoKill enabled (Every 15 Mins).${NC}"
-        [span_3](start_span)service cron restart[span_3](end_span)
+        service cron restart
         sleep 2
         ;;
     4)
-        [span_4](start_span)rm -f /etc/cron.d/tendang[span_4](end_span)
-        [span_5](start_span)echo -e "${RED}AutoKill turned off.${NC}"[span_5](end_span)
-        [span_6](start_span)service cron restart[span_6](end_span)
-        [span_7](start_span)sleep 2[span_7](end_span)
+        rm -f /etc/cron.d/tendang
+        echo -e "${RED}AutoKill turned off.${NC}"
+        service cron restart
+        sleep 2
         ;;
     x)
-        [span_8](start_span)menu-ssh.sh[span_8](end_span)
+        menu-ssh.sh
         ;;
     *)
-        [span_9](start_span)echo -e "${RED}Invalid Option${NC}"[span_9](end_span)
-        [span_10](start_span)sleep 1[span_10](end_span)
-        [span_11](start_span)autokill[span_11](end_span)
+        echo -e "${RED}Invalid Option${NC}"
+        sleep 1
+        autokill
         ;;
 esac
-[span_12](start_span)menu-ssh.sh[span_12](end_span)
+menu-ssh.sh
