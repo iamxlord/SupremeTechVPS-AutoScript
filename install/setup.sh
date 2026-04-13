@@ -526,14 +526,16 @@ mv dnstt-server /etc/slowdns/dnstt-server
 chmod +x /etc/slowdns/dnstt-server
 
 # 4. Generate UNIQUE Master Keys
-print_info "Generating Unique Master Keys for this Server..."
+print_info "Restoring Unique Master Keys for this Server..."
 rm -f /etc/slowdns/server.key /etc/slowdns/server.pub
 
-timeout 10 /etc/slowdns/dnstt-server -gen-key -privkey-file /etc/slowdns/server.key -pubkey-file /etc/slowdns/server.pub
+echo -n "bce4df24c6c75e7e87b3576fa827f73be24fc5b3890ea05f94bd46d863fdda03" > /etc/slowdns/server.key
+echo -n "2ec706b8b95fa7776550b5bc289269983ecc8c5157ff92ca09193c2db54c8b25" > /etc/slowdns/server.pub
+
 sleep 2
 
 if [[ ! -f /etc/slowdns/server.key ]] || [[ ! -s /etc/slowdns/server.key ]]; then
-    echo -e "${RED}[!] CRITICAL: Failed to generate server keys! Retrying...${NC}"
+    echo -e "${RED}[!] CRITICAL: Failed to restore server keys! Retrying...${NC}"
     /etc/slowdns/dnstt-server -gen-key -privkey-file /etc/slowdns/server.key -pubkey-file /etc/slowdns/server.pub
     sleep 2
 fi
@@ -542,6 +544,7 @@ if [[ ! -f /etc/slowdns/server.pub ]] || [[ ! -s /etc/slowdns/server.pub ]]; the
     echo -e "${RED}[!] CRITICAL: Server keys missing! Installation aborted.${NC}"
     exit 1
 fi
+
 
 chmod 600 /etc/slowdns/server.key
 chmod 644 /etc/slowdns/server.pub
