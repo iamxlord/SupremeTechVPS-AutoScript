@@ -21,20 +21,22 @@ if [[ $(grep -c "// #tr " "$CONFIG") == '0' ]]; then
     exit 1
 fi
 
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " NO   USER          EXPIRES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# FIX: Use AWK instead of CUT to handle indentation correctly
-# $3 is the Username, $4 is the Expiry Date
 grep -E "// #tr " "$CONFIG" | awk '{print $3, $4}' | sort | uniq | awk '{printf " %-4s %-13s %-10s\n", NR".", $1, $2}'
-
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-read -p " Select Number : " CLIENT_NUMBER
+read -p " Select Number : " num
+
+# SAFETY CATCH: Trapdoor Exit
+if [[ "$num" == "0" ]]; then menu-trojan.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; sleep 1; renew-tr; exit 1; fi
 
 # 2. IDENTIFY USER
-# Match the selection logic to the display logic
-user=$(grep -E "// #tr " "$CONFIG" | awk '{print $3}' | sort | uniq | sed -n "${CLIENT_NUMBER}p")
+user=$(grep -E "// #tr " "$CONFIG" | awk '{print $3}' | sort | uniq | sed -n "${num}p")
 exp=$(grep -E "// #tr " "$CONFIG" | grep "$user" | awk '{print $4}' | head -n 1)
 
 if [[ -z "$user" ]]; then
@@ -61,10 +63,8 @@ else
 fi
 
 # 5. APPLY UPDATE
-# Use | delimiter to avoid slash confusion
 sed -i "s|// #tr $user $exp|// #tr $user $new_exp|g" "$CONFIG"
 
-# Restart Service
 systemctl restart xray
 
 # 6. SUCCESS BANNER

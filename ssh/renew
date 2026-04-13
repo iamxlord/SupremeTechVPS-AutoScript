@@ -12,14 +12,9 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${ORANGE}          RENEW SSH ACCOUNT               ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 1. FIND SSH USERS (Strict Filter)
-# Logic:
-# $3 >= 1000  -> UID must be 1000 or higher (Real Users)
-# $1 != "nobody" -> Explicitly exclude 'nobody'
-# $NF == "/bin/false" ... -> Must have restricted shell
+# 1. FIND SSH USERS
 awk -F: '$3 >= 1000 && $1 != "nobody" && ($NF == "/bin/false" || $NF == "/usr/sbin/nologin") {print $1}' /etc/passwd | sort > /tmp/ssh_users.txt
 
-# Check if empty
 if [ ! -s /tmp/ssh_users.txt ]; then
     echo -e "${RED}Error: No SSH clients found!${NC}"
     echo -e "Make sure you have created a user first."
@@ -30,6 +25,8 @@ if [ ! -s /tmp/ssh_users.txt ]; then
 fi
 
 # 2. LIST USERS
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " NO   USERNAME"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 nl -s ') ' /tmp/ssh_users.txt
@@ -37,6 +34,11 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 
 # 3. SELECT USER
 read -p " Select Number : " num
+
+# SAFETY CATCH: Trapdoor Exit
+if [[ "$num" == "0" ]]; then rm -f /tmp/ssh_users.txt; menu-ssh.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; rm -f /tmp/ssh_users.txt; sleep 1; renew; exit 1; fi
+
 user=$(sed -n "${num}p" /tmp/ssh_users.txt)
 
 if [[ -z "$user" ]]; then
@@ -58,24 +60,18 @@ if [[ -z "$masaaktif" ]]; then
 fi
 
 # 5. RENEW LOGIC
-# Calculate new date
 now=$(date +%Y-%m-%d)
-# Get current expiry from chage
 current_exp=$(chage -l "$user" | grep "Account expires" | cut -d: -f2 | xargs)
 
-# If account is already expired or set to 'never', reset from today
 if [[ "$current_exp" == "never" ]] || [[ -z "$current_exp" ]]; then
     new_exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 else
-    # Check if expired
     d1=$(date -d "$current_exp" +%s)
     d2=$(date -d "$now" +%s)
     
     if [[ $d1 -ge $d2 ]]; then
-        # Active: Add to current expiry
         new_exp=$(date -d "$current_exp + $masaaktif days" +"%Y-%m-%d")
     else
-        # Expired: Add to today
         new_exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
     fi
 fi
@@ -84,8 +80,6 @@ new_exp_display=$(date -d "$new_exp" +"%b %d, %Y")
 
 # Apply to System User
 usermod -e "$new_exp" "$user"
-
-# Cleanup
 rm -f /tmp/ssh_users.txt
 
 # 6. SUCCESS BANNER

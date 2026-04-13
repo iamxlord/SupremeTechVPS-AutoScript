@@ -22,12 +22,18 @@ if [[ $(grep -c "// #vl " "$CONFIG") == '0' ]]; then
     exit 1
 fi
 
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " NO   USER          EXPIRES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 grep -E "// #vl " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 read -p " Select Number : " num
+
+# SAFETY CATCH: Trapdoor Exit
+if [[ "$num" == "0" ]]; then menu-vless.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; sleep 1; renew-vless; exit 1; fi
 
 # 2. IDENTIFY USER & CURRENT EXPIRY
 user=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
@@ -36,31 +42,29 @@ exp=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
 if [[ -z "$user" ]]; then
     echo -e "${RED}Error: Invalid selection.${NC}"
     sleep 1
-    renew-vless.sh
+    renew-vless
     exit 1
 fi
 
 # 3. INPUT DAYS
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 read -p " Add Days      : " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
 
 # 4. CALCULATE NEW EXPIRY
 now=$(date +%Y-%m-%d)
 d1=$(date -d "$exp" +%s)
 d2=$(date -d "$now" +%s)
 
-# Logic: If expired (d1 < d2), renew from TODAY. If active, extend from EXPIRY.
 if [[ $d1 -ge $d2 ]]; then
     new_exp=$(date -d "$exp + $masaaktif days" +"%Y-%m-%d")
 else
     new_exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 fi
 
-# 5. APPLY UPDATE (NEVERMORE LOGIC)
-# This updates the comment in the config file
+# 5. APPLY UPDATE 
 sed -i "s/// #vl $user $exp/// #vl $user $new_exp/g" "$CONFIG"
 
-# Restart Service
 systemctl restart xray
 
 # 6. SUCCESS BANNER

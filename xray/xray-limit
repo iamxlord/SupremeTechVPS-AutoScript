@@ -1,60 +1,166 @@
 #!/bin/bash
-# --- Mr. X Universal Auto-Expiry & JSON Validator ---
+# ==========================================
+# SupremeTech Xray Multi-Login Enforcer
+# ==========================================
 
-# 🚨 THE FIX: Wrap the entire script in a File Lock to prevent Race Conditions
+# 🚨 Wrap in a File Lock to prevent overlapping cron executions
 (
-    flock -x 200
-    
+    flock -n 200 || exit 1
+
     CONFIG="/usr/local/etc/xray/config.json"
     BACKUP="/tmp/config.json.bak"
-    HY_CONFIG="/etc/hysteria/config.yaml"
-    HY_EXP="/etc/hysteria/exp.txt"
-    today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
+    LOG_FILE="/var/log/xray/access.log"
+    TMP_LOG="/tmp/xray-access.log"
+    SUSPEND_DB="/etc/xray/suspended.txt"
+    
+    # Ensure suspend database exists
+    touch "$SUSPEND_DB"
 
-    echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
+    # 1. SECURE THE LOGS (Snapshot & Reset)
+    # We copy the log to analyze it, then empty the real log so the next 5-minute window is fresh
+    if [[ -f "$LOG_FILE" ]]; then
+        cp "$LOG_FILE" "$TMP_LOG"
+        echo "" > "$LOG_FILE"
+    else
+        exit 0
+    fi
 
-    # 1. SSH Expiry Check
-    awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
-        expiration=$(chage -l $user 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
-        if [[ "$expiration" != "never" && -n "$expiration" ]]; then
-            exp_date_sec=$(date -d "$expiration" +%s 2>/dev/null)
-            if [[ -n "$exp_date_sec" && $exp_date_sec -lt $today_sec ]]; then
-                echo "Deleted Expired SSH: $user" >> /var/log/vpn-expiry.log
-                userdel -f $user 2>/dev/null
-                rm -f /etc/xray/limit/$user 2>/dev/null
+    MODIFIED=0
+
+    # --- TELEGRAM ALERT FUNCTION ---
+    send_tg_alert() {
+        local user=$1
+        local proto=$2
+        local ip_count=$3
+        local limit=$4
+        
+        TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)
+        TG_CHATID=$(cat /etc/xray/tg_chatid 2>/dev/null)
+
+        if [[ -n "$TG_TOKEN" && -n "$TG_CHATID" ]]; then
+            MSG="🚨 *MULTI-LOGIN SUSPENSION* 🚨%0A%0A👤 *User:* \`${user}\`%0A🔌 *Protocol:* \`${proto}\`%0A⚠️ *IPs Detected:* ${ip_count} / ${limit}%0A🛑 *Action:* Account Suspended from Config!"
+            curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendMessage?chat_id=${TG_CHATID}&text=${MSG}&parse_mode=Markdown" > /dev/null 2>&1
+        fi
+    }
+
+    # --- SUSPENSION ENGINE ---
+    suspend_user() {
+        local user=$1
+        local tag=$2
+        local proto=$3
+        local ip_count=$4
+        local limit=$5
+
+        echo "$(date +"%Y-%m-%d %H:%M:%S") : SUSPENDED $user | Protocol: $proto | IPs: $ip_count/$limit" >> /var/log/autokill.log
+        echo "$proto:$user:$(date +"%Y-%m-%d")" >> "$SUSPEND_DB"
+
+        # Extract Expiry Date to match the exact string
+        local exp=$(grep -E "\\/\\/ $tag " "$CONFIG" | grep "$user" | awk '{print $4}' | head -n 1)
+
+        # SAFE TEXT-BASED DELETION (From our bulletproof del-* scripts)
+        sed -i "/\/\/ $tag $user $exp/d" "$CONFIG"
+        sed -i "/\"email\": \"$user\"/d" "$CONFIG"
+        sed -i '/^\s*$/d' "$CONFIG"
+        sed -i '/^\s*,\s*$/d' "$CONFIG"
+        sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
+
+        send_tg_alert "$user" "$proto" "$ip_count" "$limit"
+        MODIFIED=1
+    }
+
+    # ==========================================
+    # 2. XRAY PROTOCOL SCANNER
+    # ==========================================
+    cp "$CONFIG" "$BACKUP"
+
+    # Scan VMess (Tag: ###)
+    for user in $(grep -E "// ### " "$CONFIG" | awk '{print $3}'); do
+        if [[ -f "/etc/xray/limit/vmess/$user" ]]; then
+            limit=$(cat "/etc/xray/limit/vmess/$user")
+            # Extract unique IPs from the log for this user
+            ip_count=$(grep "accepted" "$TMP_LOG" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+            if [[ $ip_count -gt $limit ]]; then
+                suspend_user "$user" "###" "VMess" "$ip_count" "$limit"
             fi
         fi
     done
 
-    # 2. Xray Expiry Check 
-    if [ -f "$CONFIG" ]; then
-        cp "$CONFIG" "$BACKUP"
+    # Scan VLESS (Tag: #vl)
+    for user in $(grep -E "// #vl " "$CONFIG" | awk '{print $3}'); do
+        if [[ -f "/etc/xray/limit/vless/$user" ]]; then
+            limit=$(cat "/etc/xray/limit/vless/$user")
+            ip_count=$(grep "accepted" "$TMP_LOG" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+            if [[ $ip_count -gt $limit ]]; then
+                suspend_user "$user" "#vl" "VLESS" "$ip_count" "$limit"
+            fi
+        fi
+    done
 
-        grep -E "\/\/ #(##|vl|tr|ss) " "$CONFIG" | while read -r line; do
-            tag=$(echo "$line" | awk '{print $2}')
-            user=$(echo "$line" | awk '{print $3}')
-            exp=$(echo "$line" | awk '{print $4}')
-            
-            if [[ -n "$exp" ]]; then
-                exp_sec=$(date -d "$exp" +%s 2>/dev/null)
-                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
-                    echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
-                    sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
-                    sed -i "/\/\/ $tag $user /d" "$CONFIG"
-                    rm -f /etc/xray/limit/vmess/$user /etc/xray/limit/vless/$user /etc/xray/limit/trojan/$user /etc/xray/limit/shadowsocks/$user 2>/dev/null
+    # Scan Trojan (Tag: #tr)
+    for user in $(grep -E "// #tr " "$CONFIG" | awk '{print $3}'); do
+        if [[ -f "/etc/xray/limit/trojan/$user" ]]; then
+            limit=$(cat "/etc/xray/limit/trojan/$user")
+            ip_count=$(grep "accepted" "$TMP_LOG" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+            if [[ $ip_count -gt $limit ]]; then
+                suspend_user "$user" "#tr" "Trojan" "$ip_count" "$limit"
+            fi
+        fi
+    done
+
+    # Scan Shadowsocks (Tag: #ss)
+    for user in $(grep -E "// #ss " "$CONFIG" | awk '{print $3}'); do
+        if [[ -f "/etc/xray/limit/shadowsocks/$user" ]]; then
+            limit=$(cat "/etc/xray/limit/shadowsocks/$user")
+            ip_count=$(grep "accepted" "$TMP_LOG" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+            if [[ $ip_count -gt $limit ]]; then
+                suspend_user "$user" "#ss" "Shadowsocks" "$ip_count" "$limit"
+            fi
+        fi
+    done
+
+    # ==========================================
+    # 3. HYSTERIA 2 PROTOCOL SCANNER (Standalone)
+    # ==========================================
+    HY_CONFIG="/etc/hysteria/config.yaml"
+    HY_EXP="/etc/hysteria/exp.txt"
+    HY_MODIFIED=0
+
+    if [[ -f "$HY_EXP" ]]; then
+        for user in $(awk -F: '{print $1}' "$HY_EXP"); do
+            if [[ -f "/etc/xray/limit/hysteria/$user" ]]; then
+                limit=$(cat "/etc/xray/limit/hysteria/$user")
+                # Hysteria2 logs to systemd. We pull the last 5 minutes of auths.
+                ip_count=$(journalctl -u hysteria-server --since "5 minutes ago" --no-pager | grep "authenticated" | grep "auth=$user" | awk -F"remoteAddr=" '{print $2}' | awk '{print $1}' | cut -d: -f1 | sort | uniq | wc -l)
+                
+                if [[ $ip_count -gt $limit ]]; then
+                    echo "$(date +"%Y-%m-%d %H:%M:%S") : SUSPENDED $user | Protocol: Hysteria2 | IPs: $ip_count/$limit" >> /var/log/autokill.log
+                    echo "Hysteria2:$user:$(date +"%Y-%m-%d")" >> "$SUSPEND_DB"
+                    
+                    # Safe JQ Deletion
+                    jq "del(.auth.userpass[\"$user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
+                    sed -i "/^$user:/d" "$HY_EXP"
+                    
+                    send_tg_alert "$user" "Hysteria2" "$ip_count" "$limit"
+                    HY_MODIFIED=1
                 fi
             fi
         done
         
-        sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|vmess|vless|trojan-ws|ss-ws)/s/},/}/; P; D; }' "$CONFIG"
-        sed -i '/^\s*,\s*$/d' "$CONFIG"
+        if [[ $HY_MODIFIED -eq 1 ]]; then
+            systemctl restart hysteria-server.service
+        fi
+    fi
 
+    # ==========================================
+    # 4. STRICT JSON VALIDATION & HEALING
+    # ==========================================
+    if [[ $MODIFIED -eq 1 ]]; then
         if command -v jq &> /dev/null; then
-            if jq . "$CONFIG" >/dev/null 2>&1; then
-                systemctl is-active --quiet xray && systemctl restart xray
+            if jq empty "$CONFIG" >/dev/null 2>&1; then
+                systemctl restart xray
             else
+                echo "CRITICAL: Xray Multi-Login JSON Corruption prevented. Restoring backup." >> /var/log/autokill.log
                 cp "$BACKUP" "$CONFIG"
-                echo "CRITICAL: Xray JSON Corruption prevented." >> /var/log/vpn-expiry.log
                 systemctl restart xray
             fi
         else
@@ -62,20 +168,7 @@
         fi
     fi
 
-    # 3. Hysteria 2 Expiry Check
-    if [ -f "$HY_EXP" ] && [ -f "$HY_CONFIG" ]; then
-        while IFS=: read -r hy_user hy_exp; do
-            if [[ -n "$hy_exp" ]]; then
-                exp_sec=$(date -d "$hy_exp" +%s 2>/dev/null)
-                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
-                    echo "Deleted Expired Hysteria2: $hy_user" >> /var/log/vpn-expiry.log
-                    jq "del(.auth.userpass[\"$hy_user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
-                    sed -i "/^$hy_user:/d" "$HY_EXP"
-                    rm -f /etc/xray/limit/hysteria/$hy_user 2>/dev/null
-                    systemctl restart hysteria-server.service
-                fi
-            fi
-        done < "$HY_EXP"
-    fi
+    rm -f "$TMP_LOG"
+    rm -f "$BACKUP"
 
-) 200>/var/lock/xray-expiry.lock
+) 200>/var/lock/xray-limit.lock
