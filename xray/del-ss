@@ -1,34 +1,76 @@
 #!/bin/bash
 clear
 CONFIG="/usr/local/etc/xray/config.json"
-RED='\033[0;31m'
-NC='\033[0m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-ORANGE='\033[0;33m'
+BACKUP="/tmp/config.json.bak"
 
-read -p " Enter Shadowsocks Username to Delete : " user
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
-if [[ -z "$user" ]]; then
-    echo -e "${RED}Error: Username cannot be empty.${NC}"
-    exit 1
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      DELETE SHADOWSOCKS ACCOUNT          ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ $(grep -c "// #ss " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No Shadowsocks clients found!${NC}"
+    sleep 2; menu-ss.sh; exit 1
 fi
+
+cp "$CONFIG" "$BACKUP"
+
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// #ss " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+
+# Safety checks (Trapdoor)
+if [[ "$num" == "0" ]]; then rm -f "$BACKUP"; menu-ss.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; rm -f "$BACKUP"; sleep 1; del-ss; exit 1; fi
+
+user=$(grep -E "// #ss " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
+exp=$(grep -E "// #ss " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
+
+if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; rm -f "$BACKUP"; sleep 1; del-ss; exit 1; fi
 
 echo -e " Deleting User : ${RED}$user${NC}"
 
-# 1. DELETE THE USER
+# SAFE TEXT-BASED DELETION
+sed -i "/\/\/ #ss $user $exp/d" "$CONFIG"
 sed -i "/\"email\": \"$user\"/d" "$CONFIG"
-sed -i "/\/\/ #ss $user /d" "$CONFIG"
-
-# 2. SELF-HEALING LOGIC
 sed -i '/^\s*$/d' "$CONFIG"
-sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-# Clean trailing comma before the #ss-ws tag
-sed -i -e '/},$/ { N; /\/\/ #ss-ws/s/},/}/; P; D; }' "$CONFIG"
-
-rm -f /etc/xray/limit/shadowsocks/$user
 sed -i '/^\s*,\s*$/d' "$CONFIG"
 sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-sed -i '/^\s*$/d' "$CONFIG"
-systemctl restart xray
-echo -e "${GREEN}Shadowsocks Account Deleted Successfully!${NC}"
+
+rm -f "/etc/xray/limit/shadowsocks/$user" 2>/dev/null
+
+# STRICT JSON VALIDATION & HEALING
+if command -v jq &> /dev/null; then
+    if jq empty "$CONFIG" >/dev/null 2>&1; then
+        systemctl restart xray
+    else
+        echo -e "${RED}[✘] CRITICAL: JSON validation failed!${NC}"
+        echo -e "${YELLOW}[!] Restoring backup to prevent server crash...${NC}"
+        cp "$BACKUP" "$CONFIG"
+        systemctl restart xray
+        rm -f "$BACKUP"
+        echo -e "${RED}Deletion failed - Config automatically healed.${NC}"
+        read -n 1 -s -r -p "Press any key to back on menu..."
+        menu-ss.sh
+        exit 1
+    fi
+else
+    systemctl restart xray
+fi
+
+rm -f "$BACKUP"
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}      SHADOWSOCKS ACCOUNT DELETED         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " Username    : ${GREEN}$user${NC}"
+echo -e " Status      : ${RED}DELETED SUCCESSFULLY${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-ss.sh

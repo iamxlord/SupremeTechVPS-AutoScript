@@ -1,8 +1,9 @@
 #!/bin/bash
 clear
 CONFIG="/usr/local/etc/xray/config.json"
+BACKUP="/tmp/config.json.bak"
 
-# --- COLORS & FORMATTING ---
+# Colors
 RED='\033[0;31m'
 NC='\033[0m'
 GREEN='\033[0;32m'
@@ -13,7 +14,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${ORANGE}          DELETE VMESS ACCOUNT            ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 1. CHECK & LIST USERS
+# Check if any users exist
 if [[ $(grep -c "// ### " "$CONFIG") == '0' ]]; then
     echo -e "${RED}Error: No VMess clients found!${NC}"
     read -n 1 -s -r -p "Press any key to back on menu"
@@ -21,20 +22,40 @@ if [[ $(grep -c "// ### " "$CONFIG") == '0' ]]; then
     exit 1
 fi
 
+# Backup config before any modifications
+cp "$CONFIG" "$BACKUP"
+
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " NO   USER          EXPIRES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-grep -E "// ### " "$CONFIG" |
-awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+grep -E "// ### " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 read -p " Select Number : " num
 
-# 2. IDENTIFY USER
+# Safety checks (Trapdoor)
+if [[ "$num" == "0" ]]; then 
+    rm -f "$BACKUP"
+    menu-vmess.sh
+    exit 0
+fi
+
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then 
+    echo -e "${RED}Invalid input! Numbers only.${NC}"
+    rm -f "$BACKUP"
+    sleep 1
+    del-ws
+    exit 1
+fi
+
+# Get user and expiry
 user=$(grep -E "// ### " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
 exp=$(grep -E "// ### " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
 
 if [[ -z "$user" ]]; then
     echo -e "${RED}Error: Invalid selection.${NC}"
+    rm -f "$BACKUP"
     sleep 1
     del-ws
     exit 1
@@ -42,30 +63,56 @@ fi
 
 echo -e " Deleting User : ${RED}$user${NC}"
 
-# 3. ATOMIC DELETION (The Fix)
-# A. Delete the Tracking Tag (Matches // ### user exp)
+# ==========================================
+# SAFE TEXT-BASED DELETION (Preserves Comments)
+# ==========================================
+
+# 1. Delete tracking tag
 sed -i "/\/\/ ### $user $exp/d" "$CONFIG"
 
-# B. Delete the User Data Block
-# Safely removes the line containing the user's email
+# 2. Delete the user's JSON block
 sed -i "/\"email\": \"$user\"/d" "$CONFIG"
 
-# C. Clean Empty Lines
+# 3. Clean up empty lines and fix JSON formatting
 sed -i '/^\s*$/d' "$CONFIG"
-
-# 4. CLEANUP & RESTART
-rm -f /etc/xray/limit/vmess/$user
 sed -i '/^\s*,\s*$/d' "$CONFIG"
 sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-sed -i '/^\s*$/d' "$CONFIG"
-systemctl restart xray
 
+# Clean up limit file
+rm -f "/etc/xray/limit/vmess/$user" 2>/dev/null
+
+# ==========================================
+# STRICT JSON VALIDATION & HEALING
+# ==========================================
+if command -v jq &> /dev/null; then
+    # We use 'jq empty' because it validates syntax WITHOUT stripping comments
+    if jq empty "$CONFIG" >/dev/null 2>&1; then
+        echo -e "${GREEN}[✓] JSON validation passed${NC}"
+        systemctl restart xray
+    else
+        echo -e "${RED}[✘] CRITICAL: JSON validation failed!${NC}"
+        echo -e "${YELLOW}[!] Restoring backup to prevent server crash...${NC}"
+        cp "$BACKUP" "$CONFIG"
+        systemctl restart xray
+        rm -f "$BACKUP"
+        echo -e "${RED}Deletion failed - Config automatically healed.${NC}"
+        read -n 1 -s -r -p "Press any key to back on menu..."
+        menu-vmess.sh
+        exit 1
+    fi
+else
+    # Fallback if JQ isn't installed
+    systemctl restart xray
+fi
+
+# Clean up backup
+rm -f "$BACKUP"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        VMESS ACCOUNT DELETED             ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username    : ${GREEN}$user${NC}"
-echo -e " Status      : ${RED}DELETED${NC}"
+echo -e " Status      : ${RED}DELETED SUCCESSFULLY${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 read -n 1 -s -r -p "Press any key to back on menu"
 menu-vmess.sh

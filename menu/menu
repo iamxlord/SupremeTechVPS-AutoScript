@@ -40,27 +40,20 @@ else
 fi
 
 # --- REAL-TIME COUNTERS (BUG-FREE) ---
-SSH_COUNT=$(awk -F: '$3 >= 1000 && $1 != "nobody" && ($7 == "/bin/false" || $7 == "/usr/sbin/nologin" || $7 == "/bin/true") {print $1}' /etc/passwd | wc -l)
-VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null)
-VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null)
-TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null)
-SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null)
-HY2_COUNT=$(grep -c "// #hy " "$CONFIG" 2>/dev/null)
+[span_93](start_span)SSH_COUNT=$(awk -F: '$3 >= 1000 && $1 != "nobody" && ($7 == "/bin/false" || $7 == "/usr/sbin/nologin" || $7 == "/bin/true") {print $1}' /etc/passwd | wc -l)[span_93](end_span)
+[span_94](start_span)VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null)[span_94](end_span)
+[span_95](start_span)VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null)[span_95](end_span)
+[span_96](start_span)TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null)[span_96](end_span)
+[span_97](start_span)SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null)[span_97](end_span)
+
+# 🚨 THE FIX: Decouple Hysteria2 from Xray completely
+HY2_COUNT=$(wc -l < /etc/hysteria/exp.txt 2>/dev/null || echo 0)
 
 # Prevent empty variables from breaking the UI
-[[ -z "$VMESS_COUNT" ]] && VMESS_COUNT=0
-[[ -z "$VLESS_COUNT" ]] && VLESS_COUNT=0
-[[ -z "$TROJAN_COUNT" ]] && TROJAN_COUNT=0
-[[ -z "$SS_COUNT" ]] && SS_COUNT=0
-[[ -z "$HY2_COUNT" ]] && HY2_COUNT=0
-
-# Format with perfect fixed spacing
-pad_ssh=$(printf "%-5s" "$SSH_COUNT")
-pad_vmess=$(printf "%-5s" "$VMESS_COUNT")
-pad_vless=$(printf "%-5s" "$VLESS_COUNT")
-pad_trj=$(printf "%-5s" "$TROJAN_COUNT")
-pad_ss=$(printf "%-5s" "$SS_COUNT")
-pad_hy2=$(printf "%-5s" "$HY2_COUNT")
+[span_98](start_span)[[ -z "$VMESS_COUNT" ]] && VMESS_COUNT=0[span_98](end_span)
+[span_99](start_span)[[ -z "$VLESS_COUNT" ]] && VLESS_COUNT=0[span_99](end_span)
+[span_100](start_span)[[ -z "$TROJAN_COUNT" ]] && TROJAN_COUNT=0[span_100](end_span)
+[span_101](start_span)[[ -z "$SS_COUNT" ]] && SS_COUNT=0[span_101](end_span)
 
 # ... [Keep your Service Check Function & Bandwidth Monitor here] ...
 

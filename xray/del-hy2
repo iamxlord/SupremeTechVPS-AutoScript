@@ -2,28 +2,41 @@
 clear
 HY_CONFIG="/etc/hysteria/config.yaml"
 HY_EXP="/etc/hysteria/exp.txt"
-RED='\033[0;31m'
-NC='\033[0m'
-GREEN='\033[0;32m'
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
-read -p " Enter Hysteria2 Username to Delete : " user
-if [[ -z "$user" ]]; then exit 1; fi
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}         DELETE HYSTERIA2 ACCOUNT         ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# Verify if user exists using jq
-if ! jq -e ".auth.userpass[\"$user\"]" "$HY_CONFIG" >/dev/null 2>&1; then
-    echo -e "${RED}Error: User '$user' not found in Hysteria2!${NC}"
-    exit 1
+if [[ ! -f "$HY_EXP" || ! -s "$HY_EXP" ]]; then
+    echo -e "${RED}Error: No Hysteria2 clients found!${NC}"
+    sleep 2; menu-hy.sh; exit 1
 fi
+
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+awk -F: '{printf " %-4s %-13s %-10s\n", NR".", $1, $2}' "$HY_EXP"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+
+# SAFETY CATCH: Trapdoor Exit
+if [[ "$num" == "0" ]]; then menu-hy.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; sleep 1; del-hy2; exit 1; fi
+
+user=$(awk -F: -v line="$num" 'NR==line {print $1}' "$HY_EXP")
+if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; sleep 1; del-hy2; exit 1; fi
 
 echo -e " Deleting User : ${RED}$user${NC}"
 
-# 🚨 THE FIX: Use JQ natively instead of dangerous Sed
+# JQ native deletion
 jq "del(.auth.userpass[\"$user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
-
-# Clean up Trackers
 sed -i "/^$user:/d" "$HY_EXP" 2>/dev/null
 rm -f /etc/xray/limit/hysteria/$user 2>/dev/null
-
-# Restart the Standalone service
 systemctl restart hysteria-server.service
+
 echo -e "${GREEN}Hysteria2 Account Deleted Successfully!${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-hy.sh

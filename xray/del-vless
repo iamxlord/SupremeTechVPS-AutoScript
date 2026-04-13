@@ -1,73 +1,76 @@
 #!/bin/bash
 clear
 CONFIG="/usr/local/etc/xray/config.json"
+BACKUP="/tmp/config.json.bak"
 
-# --- COLORS & FORMATTING ---
-RED='\033[0;31m'
-NC='\033[0m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-BLUE='\033[0;34m'
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}          DELETE VLESS ACCOUNT            ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 1. CHECK & LIST USERS
 if [[ $(grep -c "// #vl " "$CONFIG") == '0' ]]; then
     echo -e "${RED}Error: No VLESS clients found!${NC}"
-    read -n 1 -s -r -p "Press any key to back on menu"
-    menu-vless.sh
-    exit 1
+    sleep 2; menu-vless.sh; exit 1
 fi
 
+cp "$CONFIG" "$BACKUP"
+
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " NO   USER          EXPIRES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-grep -E "// #vl " "$CONFIG" |
-awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+grep -E "// #vl " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 read -p " Select Number : " num
 
-# 2. IDENTIFY USER
-# Extract exact username and expiry to match the tag line perfectly
+# Safety checks (Trapdoor)
+if [[ "$num" == "0" ]]; then rm -f "$BACKUP"; menu-vless.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; rm -f "$BACKUP"; sleep 1; del-vless; exit 1; fi
+
 user=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
 exp=$(grep -E "// #vl " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
 
-if [[ -z "$user" ]]; then
-    echo -e "${RED}Error: Invalid selection.${NC}"
-    sleep 1
-    del-vless
-    exit 1
-fi
+if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; rm -f "$BACKUP"; sleep 1; del-vless; exit 1; fi
 
 echo -e " Deleting User : ${RED}$user${NC}"
 
-# 3. ATOMIC DELETION (The Fix)
-# Instead of deleting a range (which can fail), we delete specific lines.
-# A. Delete the Tracking Tag
+# SAFE TEXT-BASED DELETION
 sed -i "/\/\/ #vl $user $exp/d" "$CONFIG"
-
-# B. Delete the User Data Block
-# We search for the email line. Because your add-vless script puts the 
-# "},{"id":... glue on the same line, deleting this line safely closes the chain.
 sed -i "/\"email\": \"$user\"/d" "$CONFIG"
-
-# C. Clean Empty Lines (Hygiene)
 sed -i '/^\s*$/d' "$CONFIG"
-
-# 4. CLEANUP & RESTART
-rm -f /etc/xray/limit/vless/$user
 sed -i '/^\s*,\s*$/d' "$CONFIG"
 sed -i -z 's/}\s*{/},\n          {/g' "$CONFIG"
-sed -i '/^\s*$/d' "$CONFIG"
-systemctl restart xray
+
+rm -f "/etc/xray/limit/vless/$user" 2>/dev/null
+
+# STRICT JSON VALIDATION & HEALING
+if command -v jq &> /dev/null; then
+    if jq empty "$CONFIG" >/dev/null 2>&1; then
+        systemctl restart xray
+    else
+        echo -e "${RED}[✘] CRITICAL: JSON validation failed!${NC}"
+        echo -e "${YELLOW}[!] Restoring backup to prevent server crash...${NC}"
+        cp "$BACKUP" "$CONFIG"
+        systemctl restart xray
+        rm -f "$BACKUP"
+        echo -e "${RED}Deletion failed - Config automatically healed.${NC}"
+        read -n 1 -s -r -p "Press any key to back on menu..."
+        menu-vless.sh
+        exit 1
+    fi
+else
+    systemctl restart xray
+fi
+
+rm -f "$BACKUP"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        VLESS ACCOUNT DELETED             ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username    : ${GREEN}$user${NC}"
-echo -e " Status      : ${RED}DELETED${NC}"
+echo -e " Status      : ${RED}DELETED SUCCESSFULLY${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 read -n 1 -s -r -p "Press any key to back on menu"
 menu-vless.sh

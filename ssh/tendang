@@ -2,36 +2,35 @@
 # --- Multi-Login Killer ---
 
 # Loop through all system users with UID >= 1000
-awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
+[span_1](start_span)awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do[span_1](end_span)
     
     # 1. Check if user has a limit file
-    if [[ -e "/etc/xray/limit/$user" ]]; then
-        MAX_LOGIN=$(cat /etc/xray/limit/$user)
-    else
+    [span_2](start_span)if [[ -e "/etc/xray/limit/$user" ]]; then[span_2](end_span)
+        [span_3](start_span)MAX_LOGIN=$(cat /etc/xray/limit/$user)[span_3](end_span)
+    [span_4](start_span)else[span_4](end_span)
         # Default limit if file is missing
-        MAX_LOGIN=2
-    fi
+        [span_5](start_span)MAX_LOGIN=2[span_5](end_span)
+    [span_6](start_span)fi[span_6](end_span)
 
-    # 2. Count Active SSH/Dropbear Connections
-    # We count processes owned by the user that look like sshd or dropbear
-    # (Using pgrep -u is cleaner than parsing 'who' for accurate connection counts)
-    PID_COUNT=$(pgrep -u "$user" | grep -E "sshd|dropbear" | wc -l)
+    # 2. [span_7](start_span)Count Active SSH/Dropbear Connections[span_7](end_span)
+    # 🚨 THE FIX: Use ps -u instead of pgrep so grep actually matches text
+    PID_COUNT=$(ps -u "$user" -o comm 2>/dev/null | grep -E "^sshd$|^dropbear$" | wc -l)
     
-    # 3. Enforcement
-    if [[ $PID_COUNT -gt $MAX_LOGIN ]]; then
-        # Log the incident
-        date +"%Y-%m-%d %H:%M:%S : Kicked $user ($PID_COUNT/$MAX_LOGIN logins)" >> /var/log/autokill.log
+    # 3. [span_8](start_span)Enforcement[span_8](end_span)
+    [span_9](start_span)if [[ $PID_COUNT -gt $MAX_LOGIN ]]; then[span_9](end_span)
+        # [span_10](start_span)Log the incident[span_10](end_span)
+        [span_11](start_span)date +"%Y-%m-%d %H:%M:%S : Kicked $user ($PID_COUNT/$MAX_LOGIN logins)" >> /var/log/autokill.log[span_11](end_span)
         
-        # Kill the user's processes
-        killall -u "$user"
+        # [span_12](start_span)Kill the user's processes[span_12](end_span)
+        [span_13](start_span)killall -u "$user"[span_13](end_span)
         
         # --- TELEGRAM NOTIFICATION ---
-        TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)
-        TG_CHATID=$(cat /etc/xray/tg_chatid 2>/dev/null)
+        [span_14](start_span)TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)[span_14](end_span)
+        [span_15](start_span)TG_CHATID=$(cat /etc/xray/tg_chatid 2>/dev/null)[span_15](end_span)
         
-        if [[ -n "$TG_TOKEN" && -n "$TG_CHATID" ]]; then
-            MSG="🚨 *MULTI-LOGIN ALERT* 🚨%0A%0A👤 *User:* \`${user}\`%0A⚠️ *Logins:* ${PID_COUNT} / ${MAX_LOGIN}%0A🛑 *Action:* User connections terminated."
-            curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendMessage?chat_id=${TG_CHATID}&text=${MSG}&parse_mode=Markdown" > /dev/null 2>&1
-        fi
-    fi
-done
+        [span_16](start_span)if [[ -n "$TG_TOKEN" && -n "$TG_CHATID" ]]; then[span_16](end_span)
+            [span_17](start_span)MSG="🚨 *MULTI-LOGIN ALERT* 🚨%0A%0A👤 *User:* \`${user}\`%0A⚠️ *Logins:* ${PID_COUNT} / ${MAX_LOGIN}%0A🛑 *Action:* User connections terminated."[span_17](end_span)
+            [span_18](start_span)curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendMessage?chat_id=${TG_CHATID}&text=${MSG}&parse_mode=Markdown" > /dev/null 2>&1[span_18](end_span)
+        [span_19](start_span)fi[span_19](end_span)
+    [span_20](start_span)fi[span_20](end_span)
+[span_21](start_span)done[span_21](end_span)
