@@ -4,70 +4,114 @@ CONFIG="/usr/local/etc/xray/config.json"
 domain=$(cat /etc/xray/domain)
 PBK=$(cat /etc/xray/reality_public)
 SID=$(cat /etc/xray/reality_shortid)
+LEDGER="/etc/xray/reality_ports.txt"
 
 # --- COLORS & FORMATTING ---
-RED='\033[0;31m'
-NC='\033[0m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-BLUE='\033[0;34m'
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}        CREATE XTLS-REALITY ACCOUNT       ${NC}"
+echo -e "${ORANGE}    CREATE DYNAMIC XTLS-REALITY ACCOUNT   ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 1. GET USER INPUT
 while true; do
-    read -p " Username   : " user
-    if [[ -z "$user" ]]; then
-        echo -e "${RED}Error: Username cannot be empty!${NC}"
-    elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
-    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then
-        echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
-    else
-        break
+    read -p " Username       : " user
+    if [[ -z "$user" ]]; then echo -e "${RED}Error: Username cannot be empty!${NC}"
+    elif [[ ! "$user" =~ ^[a-zA-Z0-9_-]+$ ]]; then echo -e "${RED}Error: Username can only contain letters, numbers, hyphens, and underscores!${NC}"
+    elif grep -q "\"email\": \"$user\"" "$CONFIG"; then echo -e "${RED}Error: User '$user' already exists! Try another.${NC}"
+    else break
     fi
 done
 
-read -p " Expired (Days): " masaaktif
+read -p " Expired (Days) : " masaaktif
 [[ -z "$masaaktif" ]] && masaaktif=30
-
-read -p " Max Login     : " limit
+read -p " Max Login      : " limit
 [[ -z "$limit" ]] && limit=2
 
-read -p " Spoofed SNI (e.g. bug.com) : " sni
+# 2. DYNAMIC ENGINE LOGIC
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Spoofed SNI (Bug) : " sni
 [[ -z "$sni" ]] && sni="www.microsoft.com"
 
-# 2. PROCESS DATA
+# Check if Bug already has a dedicated port
+if grep -q "|$sni\$" "$LEDGER"; then
+    # Bug exists! Grab its assigned port.
+    port=$(grep "|$sni\$" "$LEDGER" | cut -d'|' -f1)
+    echo -e " ${GREEN}[✔] Reusing existing Reality Engine on Port $port${NC}"
+else
+    # Bug is new! Find the next available port.
+    last_port=$(tail -n 1 "$LEDGER" | cut -d'|' -f1)
+    port=$((last_port + 1))
+    
+    echo -e " ${YELLOW}[+] Generating new Reality Engine on Port $port...${NC}"
+    
+    # Update Ledger & Open Firewall
+    echo "$port|$sni" >> "$LEDGER"
+    ufw allow $port/tcp >/dev/null 2>&1
+    
+    # Inject new Engine block dynamically into config.json
+    sed -i '/"inbounds": \[/a \
+    {\
+      "port": '$port',\
+      "listen": "0.0.0.0",\
+      "protocol": "vless",\
+      "settings": {\
+        "clients": [\
+          {\
+            "id": "5783a3e7-e373-51cd-8642-c83782b807c5",\
+            "flow": "xtls-rprx-vision",\
+            "email": "default_reality_'$port'"\
+          }\
+          // #reality_'$port'\
+        ],\
+        "decryption": "none"\
+      },\
+      "streamSettings": {\
+        "network": "tcp",\
+        "security": "reality",\
+        "realitySettings": {\
+          "show": false,\
+          "dest": "'$sni':443",\
+          "xver": 0,\
+          "serverNames": [\
+            "'$sni'"\
+          ],\
+          "privateKey": "'$PBK'",\
+          "shortIds": [\
+            "'$SID'"\
+          ]\
+        }\
+      }\
+    },' "$CONFIG"
+fi
+
+# 3. PROCESS DATA
 uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (TARGETING // #reality)
-sed -i "s|// #reality|,\\
+# 4. INJECT USER (STRICTLY ISOLATED TO THEIR BUG'S PORT)
+sed -i "s|// #reality_$port|,\\
           { \"id\": \"$uuid\", \"flow\": \"xtls-rprx-vision\", \"email\": \"$user\" }\\
-          // #reality\\
+          // #reality_$port\\
           // #re $user $exp|g" $CONFIG
 
-# Set Limit File
 mkdir -p /etc/xray/limit/vless
 echo "$limit" > /etc/xray/limit/vless/$user
-
-# Restart Xray
 systemctl restart xray
 
-# 4. GENERATE LINK
-reality_link="vless://${uuid}@${domain}:443?security=reality&encryption=none&pbk=${PBK}&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=${sni}&sid=${SID}#${user}"
+# 5. GENERATE LINK
+reality_link="vless://${uuid}@${domain}:${port}?security=reality&encryption=none&pbk=${PBK}&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=${sni}&sid=${SID}#${user}"
 
-# 5. SHOW OUTPUT
+# 6. SHOW OUTPUT
 clear
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        XTLS-REALITY ACCOUNT CREATED      ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username    : ${GREEN}${user}${NC}"
 echo -e " Domain      : ${GREEN}${domain}${NC}"
-echo -e " Spoofed SNI : ${GREEN}${sni}${NC}"
+echo -e " Spoofed Bug : ${GREEN}${sni}${NC}"
+echo -e " Port        : ${GREEN}${port}${NC}"
 echo -e " User ID     : ${GREEN}${uuid}${NC}"
 echo -e " Expired On  : ${GREEN}${exp_display}${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -75,3 +119,4 @@ echo -e "${ORANGE} LINK REALITY:${NC}"
 echo -e "${GREEN}${reality_link}${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 read -n 1 -s -r -p "Press any key to back on menu"
+menu-reality.sh

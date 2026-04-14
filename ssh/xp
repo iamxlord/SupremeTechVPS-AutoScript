@@ -30,7 +30,7 @@
     if [ -f "$CONFIG" ]; then
         cp "$CONFIG" "$BACKUP"
 
-        grep -E "\/\/ #(##|vl|tr|ss) " "$CONFIG" | while read -r line; do
+        grep -E "\/\/ #(##|vl|tr|ss|re) " "$CONFIG" | while read -r line; do
             tag=$(echo "$line" | awk '{print $2}')
             user=$(echo "$line" | awk '{print $3}')
             exp=$(echo "$line" | awk '{print $4}')
@@ -46,7 +46,7 @@
             fi
         done
         
-        sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|vmess|vless|trojan-ws|ss-ws)/s/},/}/; P; D; }' "$CONFIG"
+        sed -i -e '/},$/ { N; /\/\/ #(##|vl|tr|ss|re|vmess|vless|trojan-ws|ss-ws|reality)/s/},/}/; P; D; }' "$CONFIG"
         sed -i '/^\s*,\s*$/d' "$CONFIG"
 
         if command -v jq &> /dev/null; then

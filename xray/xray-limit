@@ -95,6 +95,17 @@
             fi
         fi
     done
+    
+    # Scan Reality (Tag: #re)
+    for user in $(grep -E "// #re " "$CONFIG" | awk '{print $3}'); do
+        if [[ -f "/etc/xray/limit/vless/$user" ]]; then
+            limit=$(cat "/etc/xray/limit/vless/$user")
+            ip_count=$(grep "accepted" "$TMP_LOG" | grep "email: $user" | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+            if [[ $ip_count -gt $limit ]]; then
+                suspend_user "$user" "#re" "Reality" "$ip_count" "$limit"
+            fi
+        fi
+    done
 
     # Scan Trojan (Tag: #tr)
     for user in $(grep -E "// #tr " "$CONFIG" | awk '{print $3}'); do

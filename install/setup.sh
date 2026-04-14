@@ -882,7 +882,7 @@ systemctl enable stunnel4
 systemctl restart stunnel4
 
 echo "0 0 * * * root /usr/bin/xp" > /etc/cron.d/xp
-echo "*/5 * * * * root /usr/bin/tendang" > /etc/cron.d/tendang
+echo -e "*/5 * * * * root /usr/bin/tendang\n*/5 * * * * root /usr/bin/xray-limit" > /etc/cron.d/tendang
 echo "0 0 1 * * root systemctl restart stunnel4 nginx xray" > /etc/cron.d/cert_reload
 
 service cron restart
