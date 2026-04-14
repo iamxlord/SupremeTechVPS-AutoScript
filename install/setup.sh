@@ -340,7 +340,7 @@ rm -f /etc/nginx/sites-available/default
 cat > /etc/nginx/conf.d/vps.conf <<EOF
 server {
     listen 81 default_server;
-    listen 443 ssl http2 default_server;
+    listen 127.0.0.1:8444 ssl http2 default_server;
     server_name _;
     ssl_certificate /etc/xray/xray.crt;
     ssl_certificate_key /etc/xray/xray.key;
@@ -706,6 +706,25 @@ wget -q -O /etc/systemd/system/xray.service "${REPO_URL}/core/xray.service"
 wget -q -O /etc/xray/ohp.py "${REPO_URL}/core/ohp.py"
 wget -q -O /etc/xray/proxy.py "${REPO_URL}/core/proxy.py"
 
+# ==========================================
+# XTLS-REALITY KEY GENERATION & INJECTION
+# ==========================================
+print_info "Generating XTLS-Reality Cryptographic Keys..."
+KEYS=$(/usr/local/bin/xray x25519)
+PRIVATE_KEY=$(echo "$KEYS" | grep "PrivateKey:" | awk '{print $2}')
+PUBLIC_KEY=$(echo "$KEYS" | grep "Password (PublicKey):" | awk '{print $3}')
+SHORT_ID=$(openssl rand -hex 4)
+
+# Save keys for UI display and future linking
+echo "$PRIVATE_KEY" > /etc/xray/reality_private
+echo "$PUBLIC_KEY" > /etc/xray/reality_public
+echo "$SHORT_ID" > /etc/xray/reality_shortid
+
+# Inject safely into the config template
+sed -i "s/REPLACE_PRIVATE_KEY/$PRIVATE_KEY/g" /usr/local/etc/xray/config.json
+sed -i "s/REPLACE_SHORT_ID/$SHORT_ID/g" /usr/local/etc/xray/config.json
+print_success "XTLS-Reality Engine Primed!"
+
 # -----------------------------------------------------
 # CREATING TELEGRAM BOT SERVICE
 # -----------------------------------------------------
@@ -804,13 +823,14 @@ download_bin "menu" "menu-vless.sh"
 download_bin "menu" "menu-vmess.sh"
 download_bin "menu" "menu-ss.sh"
 download_bin "menu" "menu-hy.sh"
+download_bin "menu" "menu-reality.sh"
 
 files_ssh=(usernew trial renew hapus member delete autokill cek tendang xp backup restore cleaner health-check show-conf ceklim)
 for file in "${files_ssh[@]}"; do
     download_bin "ssh" "$file"
 done
 
-files_xray=(add-ws del-ws renew-ws cek-ws trial-ws add-vless del-vless xray-limit renew-vless cek-vless trial-vless add-tr del-tr renew-tr cek-tr trial-tr add-ss del-ss renew-ss cek-ss trial-ss add-hy2 del-hy2 renew-hy2 cek-hy2 trial-hy2)
+files_xray=(add-ws del-ws renew-ws cek-ws trial-ws add-vless del-vless xray-limit renew-vless cek-vless trial-vless add-tr del-tr renew-tr cek-tr trial-tr add-ss del-ss renew-ss cek-ss trial-ss add-hy2 del-hy2 renew-hy2 cek-hy2 trial-hy2 add-reality del-reality renew-reality cek-reality trial-reality)
 for file in "${files_xray[@]}"; do
     download_bin "xray" "$file"
 done
@@ -877,6 +897,7 @@ echo -e "${CYAN}└────────────────────�
 echo -e " ${BLUE}Domain      :${NC} $domain"
 echo -e " ${BLUE}NS Domain   :${NC} $nsdomain"
 echo -e " ${BLUE}SlowDNS Pub :${NC} $NS_PUBKEY"
+echo -e " ${BLUE}Reality Pub :${NC} $(cat /etc/xray/reality_public 2>/dev/null)"
 echo -e " ${BLUE}IP Address  :${NC} $MYIP"
 echo -e ""
 echo -e "${YELLOW} IMPORTANT: Server will reboot in 10 seconds... ${NC}"

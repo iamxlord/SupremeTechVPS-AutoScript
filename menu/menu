@@ -45,6 +45,7 @@ VMESS_COUNT=$(grep -c "// ###" "$CONFIG" 2>/dev/null)
 VLESS_COUNT=$(grep -c "// #vl " "$CONFIG" 2>/dev/null)
 TROJAN_COUNT=$(grep -c "// #tr " "$CONFIG" 2>/dev/null)
 SS_COUNT=$(grep -c "// #ss " "$CONFIG" 2>/dev/null)
+REALITY_COUNT=$(grep -c "// #re " "$CONFIG" 2>/dev/null)
 
 # 🚨 THE FIX: Decouple Hysteria2 from Xray completely
 if [[ -f /etc/hysteria/exp.txt ]]; then
@@ -58,6 +59,7 @@ fi
 [[ -z "$VLESS_COUNT" ]] && VLESS_COUNT=0
 [[ -z "$TROJAN_COUNT" ]] && TROJAN_COUNT=0
 [[ -z "$SS_COUNT" ]] && SS_COUNT=0
+[[ -z "$REALITY_COUNT" ]] && REALITY_COUNT=0
 
 # FORMAT UI PADDING
 printf -v pad_ssh "%-5s" "$SSH_COUNT"
@@ -66,8 +68,7 @@ printf -v pad_vless "%-5s" "$VLESS_COUNT"
 printf -v pad_trj "%-5s" "$TROJAN_COUNT"
 printf -v pad_ss "%-5s" "$SS_COUNT"
 printf -v pad_hy2 "%-5s" "$HY2_COUNT"
-
-# ... [Keep your Service Check Function & Bandwidth Monitor here] ...
+printf -v pad_re "%-5s" "$REALITY_COUNT"
 
 # Service Check Function
 status_check() {
@@ -111,18 +112,20 @@ echo -e "${CYAN}┌────────────────────�
 echo -e "  SSH   : ${GREEN}${pad_ssh}${NC}      VMESS : ${GREEN}${pad_vmess}${NC}"
 echo -e "  VLESS : ${GREEN}${pad_vless}${NC}      TRJ   : ${GREEN}${pad_trj}${NC}"
 echo -e "  SS-WS : ${GREEN}${pad_ss}${NC}      HYST2 : ${GREEN}${pad_hy2}${NC}"
+echo -e "  REALITY: ${GREEN}${pad_re}${NC}"
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
 
 echo -e "      SSH : $(status_check ssh)  NGINX : $(status_check nginx)   XRAY : $(status_check xray)"
 echo -e "        DROPBEAR : $(status_check dropbear)  SSH-WS : $(status_check ssh)"
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
-echo -e "     ${GREEN}[01]${NC} SSH Menu          ${GREEN}[08]${NC} SETTING Menu"
-echo -e "     ${GREEN}[02]${NC} VMESS Menu        ${GREEN}[09]${NC} BACKUP"
-echo -e "     ${GREEN}[03]${NC} VLESS Menu        ${GREEN}[10]${NC} ADD-HOST DOMAIN"
-echo -e "     ${GREEN}[04]${NC} TROJAN Menu       ${GREEN}[11]${NC} CHECK RUNNING"
-echo -e "     ${GREEN}[05]${NC} SHADOWSOCKS Menu  ${GREEN}[12]${NC} SETUP REBOOT"
-echo -e "     ${GREEN}[06]${NC} HYSTERIA2 Menu    ${GREEN}[13]${NC} NS DOMAIN"
-echo -e "     ${GREEN}[07]${NC} TRIAL Accounts    ${GREEN}[00]${NC} EXIT"
+echo -e "     ${GREEN}[01]${NC} SSH Menu          ${GREEN}[09]${NC} SETTING Menu"
+echo -e "     ${GREEN}[02]${NC} VMESS Menu        ${GREEN}[10]${NC} BACKUP"
+echo -e "     ${GREEN}[03]${NC} VLESS Menu        ${GREEN}[11]${NC} ADD-HOST DOMAIN"
+echo -e "     ${GREEN}[04]${NC} TROJAN Menu       ${GREEN}[12]${NC} CHECK RUNNING"
+echo -e "     ${GREEN}[05]${NC} SHADOWSOCKS Menu  ${GREEN}[13]${NC} SETUP REBOOT"
+echo -e "     ${GREEN}[06]${NC} HYSTERIA2 Menu    ${GREEN}[14]${NC} NS DOMAIN"
+echo -e "     ${GREEN}[07]${NC} REALITY Menu      ${GREEN}[00]${NC} EXIT"
+echo -e "     ${GREEN}[08]${NC} TRIAL Accounts    "
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
 echo -e "${YELLOW}                MONITORING BANDWIDTH                  ${NC}"
@@ -140,7 +143,8 @@ case $opt in
     4|04) menu-trojan.sh ;;
     5|05) menu-ss.sh ;;
     6|06) menu-hy.sh ;;
-    7|07)
+    7|07) menu-reality.sh ;;
+    8|08)
           clear
           echo -e "${YELLOW}Select Trial Protocol:${NC}"
           echo "1. SSH"
@@ -149,6 +153,7 @@ case $opt in
           echo "4. TROJAN"
           echo "5. SHADOWSOCKS"
           echo "6. HYSTERIA2"
+          echo "7. REALITY"
           echo ""
           read -p ">> " trl
           case $trl in
@@ -158,13 +163,14 @@ case $opt in
             4) trial-tr ;;
             5) trial-ss ;;
             6) trial-hy2 ;;
+            7) trial-reality ;;
             *) echo "Invalid"; sleep 1; menu ;;
           esac ;;
-    8|08) menu-set.sh ;;
-    9|09) backup ;;
-    10) menu-set.sh ;;
-    11) health-check ;;
-    12) 
+    9|09) menu-set.sh ;;
+    10) backup ;;
+    11) menu-set.sh ;;
+    12) health-check ;;
+    13) 
         read -p "Set Reboot Hour (0-23): " hr
         if [[ "$hr" =~ ^[0-9]+$ ]] && [ "$hr" -ge 0 ] && [ "$hr" -le 23 ]; then
             echo "0 $hr * * * root reboot" > /etc/cron.d/reboot
@@ -176,7 +182,7 @@ case $opt in
             sleep 2
         fi
         menu ;;
-    13) 
+    14) 
         read -p "Input NS Domain: " nsdom
         if [[ ! -z "$nsdom" ]]; then
             echo "$nsdom" > /etc/xray/nsdomain

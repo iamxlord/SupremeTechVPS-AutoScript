@@ -1,0 +1,33 @@
+#!/bin/bash
+clear
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
+LOG="/var/log/xray/access.log"
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}            REALITY USER ACTIVITY                 ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ ! -f "$LOG" ]]; then
+    echo -e "${RED} Error: Xray access log not found.${NC}"
+    read -n 1 -s -r -p "Press any key..."
+    menu-reality.sh; exit 0
+fi
+
+echo -e " ${GREEN}TIME      IP ADDRESS       USER${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Reality connections log with "accepted" and the user's email
+data=$(grep "accepted" "$LOG" | grep -v "127.0.0.1" | grep "email:" | tail -n 10)
+
+if [[ -z "$data" ]]; then
+    echo -e "${ORANGE} No activity found yet.${NC}"
+else
+    echo "$data" | awk '{print $2, $3, $NF}' | while read time ip user; do
+        clean_ip=$(echo $ip | cut -d: -f1)
+        printf " %-9s %-16s %s\n" "$time" "$clean_ip" "$user"
+    done
+fi
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-reality.sh

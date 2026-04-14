@@ -54,7 +54,8 @@ systemctl restart xray
 
 # 4. GENERATE LINK (WS ONLY)
 # Note: Port 443 is correct (Nginx handles the TLS termination)
-trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
+trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=httpupgrade&sni=${domain}#${user}"
+
 
 # 5. SHOW OUTPUT
 clear

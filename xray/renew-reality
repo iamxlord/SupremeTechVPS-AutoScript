@@ -1,0 +1,53 @@
+#!/bin/bash
+clear
+CONFIG="/usr/local/etc/xray/config.json"
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${ORANGE}          RENEW REALITY USER              ${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ $(grep -c "// #re " "$CONFIG") == '0' ]]; then
+    echo -e "${RED}Error: No Reality clients found!${NC}"
+    sleep 2; menu-reality.sh; exit 1
+fi
+
+echo -e " ${GREEN}[0]  Cancel & Return to Menu${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " NO   USER          EXPIRES"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+grep -E "// #re " "$CONFIG" | awk '{printf " %-4s %-13s %-10s\n", NR".", $3, $4}'
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p " Select Number : " num
+
+if [[ "$num" == "0" ]]; then menu-reality.sh; exit 0; fi
+if ! [[ "$num" =~ ^[0-9]+$ ]]; then echo -e "${RED}Invalid input! Numbers only.${NC}"; sleep 1; renew-reality; exit 1; fi
+
+user=$(grep -E "// #re " "$CONFIG" | awk -v line="$num" 'NR==line {print $3}')
+exp=$(grep -E "// #re " "$CONFIG" | awk -v line="$num" 'NR==line {print $4}')
+
+if [[ -z "$user" ]]; then echo -e "${RED}Error: Invalid selection.${NC}"; sleep 1; renew-reality; exit 1; fi
+
+read -p " Add Days      : " masaaktif
+[[ -z "$masaaktif" ]] && masaaktif=30
+
+now=$(date +%Y-%m-%d)
+d1=$(date -d "$exp" +%s)
+d2=$(date -d "$now" +%s)
+
+if [[ $d1 -ge $d2 ]]; then
+    new_exp=$(date -d "$exp + $masaaktif days" +"%Y-%m-%d")
+else
+    new_exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+fi
+
+sed -i "s/// #re $user $exp/// #re $user $new_exp/g" "$CONFIG"
+systemctl restart xray
+
+clear
+echo -e "${GREEN}REALITY USER RENEWED SUCCESSFULLY${NC}"
+echo -e " Username    : ${GREEN}$user${NC}"
+echo -e " New Expiry  : ${GREEN}$new_exp${NC}"
+read -n 1 -s -r -p "Press any key to back on menu"
+menu-reality.sh

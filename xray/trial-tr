@@ -44,7 +44,8 @@ echo "$limit" > /etc/xray/limit/trojan/$user
 systemctl restart xray
 
 # 3. GENERATE LINK
-trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
+trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=httpupgrade&sni=${domain}#${user}"
+
 
 # 4. SHOW OUTPUT
 clear

@@ -54,8 +54,8 @@ echo "$limit" > /etc/xray/limit/vless/$user
 systemctl restart xray
 
 # 4. GENERATE LINKS
-vless_tls="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=ws#${user}"
-vless_none="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=ws#${user}"
+vless_tls="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=httpupgrade#${user}"
+vless_none="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=httpupgrade#${user}"
 
 # 5. SHOW OUTPUT
 clear

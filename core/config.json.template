@@ -6,6 +6,40 @@
   },
   "inbounds": [
     {
+      "port": 443,
+      "listen": "0.0.0.0",
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
+            "flow": "xtls-rprx-vision",
+            "email": "default_reality"
+          }
+          // #reality
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "127.0.0.1:8444",
+          "xver": 0,
+          "serverNames": [
+            "www.microsoft.com",
+            "beerleagueheroes.com",
+            "login.microsoftonline.com"
+          ],
+          "privateKey": "REPLACE_PRIVATE_KEY",
+          "shortIds": [
+            "REPLACE_SHORT_ID"
+          ]
+        }
+      }
+    },
+    {
       "port": 10001,
       "listen": "127.0.0.1",
       "protocol": "vless",
@@ -14,15 +48,16 @@
           {
             "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
             "email": "default_vless"
-// #vless
           }
+          // #vl
         ],
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "/vless"
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/vless",
+          "host": ""
         }
       }
     },
@@ -36,14 +71,15 @@
             "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
             "alterId": 0,
             "email": "default_vmess"
-// #vmess
           }
+          // #vmess
         ]
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "/vmess"
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/vmess",
+          "host": ""
         }
       }
     },
@@ -61,9 +97,10 @@
         ]
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "/trojan-ws"
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/trojan-ws",
+          "host": ""
         }
       }
     },
@@ -83,9 +120,10 @@
         "network": "tcp,udp"
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "/ss-ws"
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/ss-ws",
+          "host": ""
         }
       }
     }
