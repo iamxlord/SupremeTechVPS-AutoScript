@@ -245,6 +245,55 @@ reality_bug_manager() {
 }
 
 # ==========================================
+# 11. SLOWDNS KEY MANAGER
+# ==========================================
+slowdns_manager() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}               SLOWDNS KEY MANAGER                    ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    current_pub=$(cat /etc/slowdns/server.pub 2>/dev/null || echo "None")
+    echo -e " Current PubKey : ${GREEN}$current_pub${NC}"
+    echo -e "${CYAN}───────────────────────────────────────────────────────${NC}"
+    echo -e "  ${GREEN}[1]${NC} Generate Fresh Random Keys (Maximum Security)"
+    echo -e "  ${GREEN}[2]${NC} Inject Custom/Global Key Pair (Compatibility)"
+    echo -e "  ${GREEN}[0]${NC} Back to Settings"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    read -p " Select : " dnstt_opt
+
+    if [[ "$dnstt_opt" == "1" ]]; then
+        echo -e "\n${YELLOW}[+] Generating fresh X25519 keys...${NC}"
+        rm -f /etc/slowdns/server.key /etc/slowdns/server.pub
+        /etc/slowdns/dnstt-server -gen-key -privkey-file /etc/slowdns/server.key -pubkey-file /etc/slowdns/server.pub
+        systemctl restart client-slow
+        
+        NEW_PUB=$(cat /etc/slowdns/server.pub)
+        echo -e "${GREEN}[✔] Fresh keys applied! New PubKey: $NEW_PUB${NC}"
+        sleep 4; menu-set.sh
+        
+    elif [[ "$dnstt_opt" == "2" ]]; then
+        echo -e "\n ${RED}WARNING:${NC} You must have both the Private and Public key!"
+        read -p " Enter Private Key : " priv_key
+        read -p " Enter Public Key  : " pub_key
+        
+        if [[ -n "$priv_key" && -n "$pub_key" ]]; then
+            echo -n "$priv_key" > /etc/slowdns/server.key
+            echo -n "$pub_key" > /etc/slowdns/server.pub
+            systemctl restart client-slow
+            echo -e "${GREEN}[✔] Custom/Global keys applied successfully!${NC}"
+        else
+            echo -e "${RED}Invalid input! Keys cannot be empty.${NC}"
+        fi
+        sleep 3; menu-set.sh
+        
+    elif [[ "$dnstt_opt" == "0" ]]; then
+        menu-set.sh
+    else
+        echo -e "${RED}Invalid Option${NC}"; sleep 1; slowdns_manager
+    fi
+}
+
+# ==========================================
 # 7. SAFE BANNER CHANGER (Dropbear Crash Prevention)
 # ==========================================
 change_banner() {
@@ -343,13 +392,14 @@ clear
 echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
 echo -e "${YELLOW}                 SYSTEM SETTINGS MENU                 ${NC}"
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
-echo -e "  ${GREEN}[01]${NC} Domain & SSL       ${GREEN}[07]${NC} Change SSH Banner"
-echo -e "  ${GREEN}[02]${NC} Port Info List     ${GREEN}[08]${NC} Check Bandwidth"
-echo -e "  ${GREEN}[03]${NC} Service Restarts   ${GREEN}[09]${NC} Speedtest VPS"
-echo -e "  ${GREEN}[04]${NC} Xray Editor        ${GREEN}[10]${NC} System Cache Cleaner"
-echo -e "  ${GREEN}[05]${NC} Firewall (UFW)     ${GREEN}[11]${NC} Auto-Reboot Settings"
-echo -e "  ${GREEN}[06]${NC} DNS Changer        ${GREEN}[12]${NC} Proxy Response"
-echo -e "  ${GREEN}[13]${NC} Health Checker" 
+echo -e "  ${GREEN}[01]${NC} Domain & SSL       ${GREEN}[08]${NC} Check Bandwidth"
+echo -e "  ${GREEN}[02]${NC} Port Info List     ${GREEN}[09]${NC} Speedtest VPS"
+echo -e "  ${GREEN}[03]${NC} Service Restarts   ${GREEN}[10]${NC} System Cache Cleaner"
+echo -e "  ${GREEN}[04]${NC} Xray Editor        ${GREEN}[11]${NC} Auto-Reboot Settings"
+echo -e "  ${GREEN}[05]${NC} Firewall (UFW)     ${GREEN}[12]${NC} Proxy Response"
+echo -e "  ${GREEN}[06]${NC} DNS Changer        ${GREEN}[13]${NC} Health Checker"
+echo -e "  ${GREEN}[07]${NC} Change SSH Banner  ${GREEN}[14]${NC} Active Reality Engines" 
+echo -e "  ${GREEN}[15]${NC} SlowDNS Key Manager" 
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
 echo -e "  ${GREEN}[00]${NC} Back to Main Menu"
 echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
@@ -369,6 +419,8 @@ case $opt in
     11) auto_reboot ;;
     12) proxy_response_changer ;;
     13) health-check; echo ""; read -n 1 -s -r -p "Press any key..."; menu-set.sh ;;
+    14) reality_bug_manager ;;
+    15) slowdns_manager ;;
     0|00) menu ;;
     *) echo -e "${RED}Invalid Option${NC}"; sleep 1; menu-set.sh ;;
 esac

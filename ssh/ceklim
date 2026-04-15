@@ -2,12 +2,7 @@
 # ==========================================
 #  Check Multi-Login (SSH & Dropbear)
 # ==========================================
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 clear
 echo -e "${CYAN}┌──────────────────────────────────────────────────────┐${NC}"
@@ -16,15 +11,12 @@ echo -e "${CYAN}└────────────────────�
 echo -e " Checking active SSH and Dropbear sessions..."
 echo -e ""
 
-# Get list of normal VPN users
 USERS=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd)
-
 found=0
+
 for user in $USERS; do
-    # Count open SSH and Dropbear processes for this user
-    sshd_count=$(ps -u $user 2>/dev/null | grep -c "sshd")
-    dropbear_count=$(ps -u $user 2>/dev/null | grep -c "dropbear")
-    total_logins=$((sshd_count + dropbear_count))
+    # 🚨 FIXED: Simple and bulletproof PID counter
+    total_logins=$(ps -u "$user" 2>/dev/null | grep -E -c "sshd|dropbear")
     
     if [[ $total_logins -gt 1 ]]; then
         echo -e " ${BLUE}>${NC} User: ${GREEN}$user${NC} | Active Logins: ${RED}$total_logins${NC}"
