@@ -4,11 +4,21 @@ echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━�
 echo -e "\033[0;33m      OPENVPN CONFIGURATION        \033[0m"
 echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 
-# This perfectly looks for the file our new OpenVPN module will generate!
-if [[ -f /etc/openvpn/client.ovpn ]]; then
-    cat /etc/openvpn/client.ovpn
+DOMAIN=$(cat /etc/xray/domain 2>/dev/null || curl -sS ifconfig.me)
+
+if [[ -f /var/www/html/ovpn/client-tcp.ovpn ]]; then
+    echo -e "\033[0;32m[+] OVPN TCP Profile (Port 1194):\033[0m"
+    echo -e "Direct Download : http://${DOMAIN}:85/client-tcp.ovpn\n"
+    cat /var/www/html/ovpn/client-tcp.ovpn
+    
+    echo -e "\n\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    
+    echo -e "\033[0;32m[+] OVPN UDP Profile (Port 2200):\033[0m"
+    echo -e "Direct Download : http://${DOMAIN}:85/client-udp.ovpn\n"
+    cat /var/www/html/ovpn/client-udp.ovpn
 else
-    echo -e "\033[0;31mError: Config file not found.\033[0m"
+    echo -e "\033[0;31mError: OpenVPN Config files not found.\033[0m"
+    echo -e "Ensure OpenVPN installed correctly in setup.sh."
 fi
 
 echo -e "\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
