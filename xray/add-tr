@@ -11,7 +11,7 @@ ORANGE='\033[0;33m'
 BLUE='\033[0;34m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}      CREATE TROJAN ACCOUNT (WS)   ${NC}"
+echo -e "${ORANGE}      CREATE TROJAN ACCOUNT (WS)         ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 1. GET USER INPUT
@@ -28,9 +28,9 @@ while true; do
     fi
 done
 
-read -p " Expired    : " masaaktif
+read -p " Expired (Days): " masaaktif
 [[ -z "$masaaktif" ]] && masaaktif=30
-read -p " Max Login  : " limit
+read -p " Max Login     : " limit
 [[ -z "$limit" ]] && limit=1
 
 # 2. PROCESS DATA
@@ -38,12 +38,11 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (TARGETING // #trojan-ws)
-# We replace the tag with: , { user_data } \n // #trojan-ws
+# 3. ✅ FIXED: INJECT USER (CLEAN COMMA METHOD targeting // #trojan-ws)
 sed -i "s|// #trojan-ws|,\\
           { \"password\": \"$uuid\", \"email\": \"$user\" }\\
           // #trojan-ws\\
-          // #tr $user $exp|g" $CONFIG
+          // #tr $user $exp|g" "$CONFIG"
 
 # Save Limit
 mkdir -p /etc/xray/limit/trojan
@@ -52,15 +51,13 @@ echo "$limit" > /etc/xray/limit/trojan/$user
 # Restart Xray
 systemctl restart xray
 
-# 4. GENERATE LINK (WS ONLY)
-# Note: Port 443 is correct (Nginx handles the TLS termination)
+# 4. GENERATE LINK
 trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=httpupgrade&sni=${domain}#${user}"
-
 
 # 5. SHOW OUTPUT
 clear
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}      PREMIUM TROJAN ACCOUNT       ${NC}"
+echo -e "${ORANGE}      PREMIUM TROJAN ACCOUNT             ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username     : ${GREEN}$user${NC}"
 echo -e " Key/UUID     : ${GREEN}$uuid${NC}"

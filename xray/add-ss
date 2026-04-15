@@ -28,9 +28,9 @@ while true; do
     fi
 done
 
-read -p " Expired    : " masaaktif
+read -p " Expired (Days): " masaaktif
 [[ -z "$masaaktif" ]] && masaaktif=30
-read -p " Max Login  : " limit
+read -p " Max Login     : " limit
 [[ -z "$limit" ]] && limit=1
 
 # 2. PROCESS DATA
@@ -38,11 +38,11 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (TARGETING // #ss-ws)
+# 3. ✅ FIXED: INJECT USER (CLEAN COMMA METHOD targeting // #ss-ws)
 sed -i "s|// #ss-ws|,\\
           { \"password\": \"$uuid\", \"method\": \"aes-256-gcm\", \"email\": \"$user\" }\\
           // #ss-ws\\
-          // #ss $user $exp|g" $CONFIG
+          // #ss $user $exp|g" "$CONFIG"
 
 # Save Limit
 mkdir -p /etc/xray/limit/shadowsocks
@@ -52,7 +52,6 @@ echo "$limit" > /etc/xray/limit/shadowsocks/$user
 systemctl restart xray
 
 # 4. GENERATE LINKS
-# Shadowsocks requires the 'method:password' to be Base64 encoded
 ss_creds=$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)
 
 link_tls="ss://${ss_creds}@${domain}:443?plugin=v2ray-plugin%3Btls%3Bhost%3D${domain}%3Bpath%3D%2Fss-ws#${user}"

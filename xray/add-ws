@@ -3,21 +3,15 @@ clear
 CONFIG="/usr/local/etc/xray/config.json"
 domain=$(cat /etc/xray/domain)
 
-# --- COLORS & FORMATTING ---
-RED='\033[0;31m'
-NC='\033[0m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-LIGHT='\033[0;37m'
+# Colors
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'
+ORANGE='\033[0;33m'; BLUE='\033[0;34m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}          ADD VMESS ACCOUNT               ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 1. GET USER INPUT
+# Input validation (keeping your existing validation)
 while true; do
     read -p " Username   : " user
     if [[ -z "$user" ]]; then
@@ -33,34 +27,35 @@ done
 
 read -p " Expired (Days): " masaaktif
 [[ -z "$masaaktif" ]] && masaaktif=30
-
 read -p " Max Login     : " limit
 [[ -z "$limit" ]] && limit=2
 
-# 2. PROCESS DATA
+# Process data
 uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (NEVERMORE LOGIC)
-sed -i '/\/\/ #vmess$/a\// ### '"$user $exp"'\
-},{"id": "'""$uuid""'","alterId": 0,"email": "'""$user""'"' "$CONFIG"
+# ✅ FIXED: Inject user with clean comma method
+sed -i "s|// #vmess|,\\
+          { \"id\": \"$uuid\", \"alterId\": 0, \"email\": \"$user\" }\\
+          // #vmess\\
+          // ### $user $exp|g" "$CONFIG"
 
-# Set Limit File
+# Save limit
 mkdir -p /etc/xray/limit/vmess
 echo "$limit" > /etc/xray/limit/vmess/$user
 
 # Restart Xray
 systemctl restart xray
 
-# 4. GENERATE LINKS
+# Generate links (your existing link generation)
 json_tls='{"add":"'$domain'","aid":"0","host":"'$domain'","id":"'$uuid'","net":"httpupgrade","path":"/vmess","port":"443","ps":"'$user'","scy":"auto","sni":"'$domain'","tls":"tls","type":"","v":"2"}'
 link_tls="vmess://$(echo $json_tls | base64 -w 0)"
 
 json_none='{"add":"'$domain'","aid":"0","host":"'$domain'","id":"'$uuid'","net":"httpupgrade","path":"/vmess","port":"80","ps":"'$user'","scy":"auto","sni":"","tls":"none","type":"","v":"2"}'
 link_none="vmess://$(echo $json_none | base64 -w 0)"
 
-# 5. SHOW OUTPUT
+# Display output
 clear
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        VMESS ACCOUNT CREATED             ${NC}"

@@ -11,7 +11,7 @@ ORANGE='\033[0;33m'
 BLUE='\033[0;34m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}      GENERATE TRIAL TROJAN (WS)   ${NC}"
+echo -e "${ORANGE}      GENERATE TRIAL TROJAN (WS)         ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 1. GENERATE USER
@@ -30,11 +30,11 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display="24 Hours (Trial)"
 
-# 2. INJECT USER (TARGETING // #trojan-ws)
+# 2. ✅ FIXED: INJECT USER (CLEAN COMMA METHOD targeting // #trojan-ws)
 sed -i "s|// #trojan-ws|,\\
           { \"password\": \"$uuid\", \"email\": \"$user\" }\\
           // #trojan-ws\\
-          // #tr $user $exp|g" $CONFIG
+          // #tr $user $exp|g" "$CONFIG"
 
 # Save Limit (So Autokill works)
 mkdir -p /etc/xray/limit/trojan
@@ -46,11 +46,10 @@ systemctl restart xray
 # 3. GENERATE LINK
 trojan_ws="trojan://${uuid}@${domain}:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=httpupgrade&sni=${domain}#${user}"
 
-
 # 4. SHOW OUTPUT
 clear
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}      TRIAL TROJAN CREATED         ${NC}"
+echo -e "${ORANGE}      TRIAL TROJAN CREATED               ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username     : ${GREEN}$user${NC}"
 echo -e " Key/UUID     : ${GREEN}$uuid${NC}"

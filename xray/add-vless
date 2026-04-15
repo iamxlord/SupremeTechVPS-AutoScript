@@ -42,9 +42,11 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display=$(date -d "$masaaktif days" +"%b %d, %Y")
 
-# 3. INJECT USER (NEVERMORE LOGIC with #vl TAG)
-sed -i '/\/\/ #vless$/a\// #vl '"$user $exp"'\
-},{"id": "'""$uuid""'","email": "'""$user""'"' "$CONFIG"
+# 3. ✅ FIXED: INJECT USER (CLEAN COMMA METHOD with #vl TAG)
+sed -i "s|// #vless|,\\
+          { \"id\": \"$uuid\", \"email\": \"$user\" }\\
+          // #vless\\
+          // #vl $user $exp|g" "$CONFIG"
 
 # Set Limit File
 mkdir -p /etc/xray/limit/vless

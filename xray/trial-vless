@@ -38,10 +38,11 @@ limit=1
 # 2. PROCESS DATA
 uuid=$(cat /proc/sys/kernel/random/uuid)
 
-# 3. INJECT USER (NEVERMORE LOGIC with #vl TAG)
-# We must use #vl so the Main Menu counts it and Delete Menu sees it.
-sed -i '/\/\/ #vless$/a\// #vl '"$user $exp"'\
-},{"id": "'""$uuid""'","email": "'""$user""'"' "$CONFIG"
+# 3. ✅ FIXED: INJECT USER (CLEAN COMMA METHOD with #vl TAG)
+sed -i "s|// #vless|,\\
+          { \"id\": \"$uuid\", \"email\": \"$user\" }\\
+          // #vless\\
+          // #vl $user $exp|g" "$CONFIG"
 
 # Set Limit File
 mkdir -p /etc/xray/limit/vless
@@ -52,9 +53,7 @@ systemctl restart xray
 
 # 4. GENERATE LINKS
 vless_tls="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=httpupgrade#${user}"
-
 vless_none="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=httpupgrade#${user}"
-
 
 # 5. SHOW OUTPUT
 clear
