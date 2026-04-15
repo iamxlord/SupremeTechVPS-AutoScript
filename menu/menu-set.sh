@@ -182,7 +182,7 @@ firewall_manager() {
             echo -e "${YELLOW}Applying VPN Port Whitelists...${NC}"
             ufw --force reset; ufw default deny incoming; ufw default allow outgoing
             ufw allow 22/tcp; ufw allow 109/tcp; ufw allow 85/tcp; ufw allow 143/tcp
-            ufw allow 80/tcp; ufw allow 81/tcp; ufw allow 443/tcp; ufw allow 443/udp; ufw allow 447/tcp; ufw allow 777/tcp
+            ufw allow 80/tcp; ufw allow 81/tcp; ufw allow 443/tcp; ufw allow 443/udp; ufw allow 8443/tcp; ufw allow 447/tcp; ufw allow 777/tcp
             ufw allow 8080/tcp; ufw allow 53/udp; ufw allow 5300/udp; ufw allow 1080/tcp; ufw allow 2200/udp
             ufw --force enable
             echo -e "${GREEN}Default VPN Rules Applied!${NC}" ;;
@@ -217,6 +217,31 @@ dns_changer() {
     systemctl restart systemd-resolved
     echo -e "${GREEN}[✔] DNS Updated Successfully!${NC}"
     sleep 2; menu-set.sh
+}
+# ==========================================
+# 6.5 XTLS-REALITY ENGINE VIEWER
+# ==========================================
+reality_bug_manager() {
+    clear
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}           ACTIVE XTLS-REALITY ENGINES                ${NC}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────┘${NC}"
+    echo -e " ${GREEN}PORT      SPOOFED BUG (SNI)${NC}"
+    echo -e "${CYAN}───────────────────────────────────────────────────────${NC}"
+    
+    if [[ -f /etc/xray/reality_ports.txt ]]; then
+        while IFS='|' read -r port bug; do
+            printf " %-9s %s\n" "$port" "$bug"
+        done < /etc/xray/reality_ports.txt
+    else
+        echo -e " ${RED}No active Reality engines found.${NC}"
+    fi
+    echo -e "${CYAN}───────────────────────────────────────────────────────${NC}"
+    echo -e " ${ORANGE}Note:${NC} New engines are generated automatically when"
+    echo -e " you type a new Bug SNI in the Add Reality menu."
+    echo -e ""
+    read -n 1 -s -r -p "Press any key to return..."
+    menu-set.sh
 }
 
 # ==========================================

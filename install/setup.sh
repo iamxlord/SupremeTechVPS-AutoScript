@@ -340,7 +340,7 @@ rm -f /etc/nginx/sites-available/default
 cat > /etc/nginx/conf.d/vps.conf <<EOF
 server {
     listen 81 default_server;
-    listen 127.0.0.1:8444 ssl http2 default_server;
+    listen 443 ssl http2 default_server;
     server_name _;
     ssl_certificate /etc/xray/xray.crt;
     ssl_certificate_key /etc/xray/xray.key;
@@ -714,16 +714,26 @@ KEYS=$(/usr/local/bin/xray x25519)
 PRIVATE_KEY=$(echo "$KEYS" | grep "PrivateKey:" | awk '{print $2}')
 PUBLIC_KEY=$(echo "$KEYS" | grep "Password (PublicKey):" | awk '{print $3}')
 SHORT_ID=$(openssl rand -hex 4)
+DEFAULT_BUG="www.microsoft.com"
+DEFAULT_PORT=8443
 
 # Save keys for UI display and future linking
 echo "$PRIVATE_KEY" > /etc/xray/reality_private
 echo "$PUBLIC_KEY" > /etc/xray/reality_public
 echo "$SHORT_ID" > /etc/xray/reality_shortid
+echo "$DEFAULT_BUG" > /etc/xray/reality_sni
+
+# Create the Reality Ledger (Maps Ports to Bugs)
+echo "$DEFAULT_PORT|$DEFAULT_BUG" > /etc/xray/reality_ports.txt
 
 # Inject safely into the config template
 sed -i "s/REPLACE_PRIVATE_KEY/$PRIVATE_KEY/g" /usr/local/etc/xray/config.json
 sed -i "s/REPLACE_SHORT_ID/$SHORT_ID/g" /usr/local/etc/xray/config.json
-print_success "XTLS-Reality Engine Primed!"
+sed -i "s/REPLACE_REALITY_DEST/$DEFAULT_BUG/g" /usr/local/etc/xray/config.json
+sed -i "s/REPLACE_REALITY_SNI/$DEFAULT_BUG/g" /usr/local/etc/xray/config.json
+print_success "XTLS-Reality Engine Primed on Port $DEFAULT_PORT!"
+
+
 
 # -----------------------------------------------------
 # CREATING TELEGRAM BOT SERVICE

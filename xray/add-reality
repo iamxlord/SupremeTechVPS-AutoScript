@@ -7,7 +7,7 @@ SID=$(cat /etc/xray/reality_shortid)
 LEDGER="/etc/xray/reality_ports.txt"
 
 # --- COLORS & FORMATTING ---
-RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'; YELLOW='\033[0;33m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}    CREATE DYNAMIC XTLS-REALITY ACCOUNT   ${NC}"
@@ -39,11 +39,23 @@ if grep -q "|$sni\$" "$LEDGER"; then
     port=$(grep "|$sni\$" "$LEDGER" | cut -d'|' -f1)
     echo -e " ${GREEN}[✔] Reusing existing Reality Engine on Port $port${NC}"
 else
-    # Bug is new! Find the next available port.
+    # Bug is new! Find the next available port starting from the ledger's last port.
     last_port=$(tail -n 1 "$LEDGER" | cut -d'|' -f1)
+    [[ -z "$last_port" ]] && last_port=8443 # Safety fallback if ledger is empty
     port=$((last_port + 1))
     
-    echo -e " ${YELLOW}[+] Generating new Reality Engine on Port $port...${NC}"
+    # 🚨 PORT COLLISION AVOIDER 🚨
+    # Verifies the port is strictly free on the OS level AND not in Xray config
+    while true; do
+        if ss -tuln | grep -q ":$port " || grep -q "\"port\": $port," "$CONFIG"; then
+            echo -e " ${YELLOW}[!] Port $port is in use or reserved. Scanning next...${NC}"
+            ((port++))
+        else
+            break
+        fi
+    done
+    
+    echo -e " ${YELLOW}[+] Generating new Reality Engine on verified Port $port...${NC}"
     
     # Update Ledger & Open Firewall
     echo "$port|$sni" >> "$LEDGER"

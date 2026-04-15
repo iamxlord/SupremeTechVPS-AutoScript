@@ -4,39 +4,113 @@ CONFIG="/usr/local/etc/xray/config.json"
 domain=$(cat /etc/xray/domain)
 PBK=$(cat /etc/xray/reality_public)
 SID=$(cat /etc/xray/reality_shortid)
+LEDGER="/etc/xray/reality_ports.txt"
 
-RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'
+# --- COLORS & FORMATTING ---
+RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'; YELLOW='\033[0;33m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}        GENERATE TRIAL REALITY            ${NC}"
+echo -e "${ORANGE}    GENERATE DYNAMIC TRIAL REALITY        ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
+# 1. GET DYNAMIC BUG CONFIGURATION
+echo -e " ${ORANGE}DYNAMIC BUG CONFIGURATION${NC}"
+echo -e " Xray requires a dedicated port for each unique bug."
+echo -e " If you reuse a port, it MUST use the same bug."
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+read -p " Spoofed SNI (Bug) : " sni
+[[ -z "$sni" ]] && sni="www.microsoft.com"
+
+# 2. DYNAMIC ENGINE LOGIC & COLLISION CHECK
+if grep -q "|$sni\$" "$LEDGER"; then
+    port=$(grep "|$sni\$" "$LEDGER" | cut -d'|' -f1)
+    echo -e " ${GREEN}[✔] Reusing existing Reality Engine on Port $port${NC}"
+else
+    last_port=$(tail -n 1 "$LEDGER" | cut -d'|' -f1)
+    [[ -z "$last_port" ]] && last_port=8443
+    port=$((last_port + 1))
+    
+    while true; do
+        if ss -tuln | grep -q ":$port " || grep -q "\"port\": $port," "$CONFIG"; then
+            echo -e " ${YELLOW}[!] Port $port is in use or reserved. Scanning next...${NC}"
+            ((port++))
+        else
+            break
+        fi
+    done
+    
+    echo -e " ${YELLOW}[+] Generating new Reality Engine on verified Port $port...${NC}"
+    
+    echo "$port|$sni" >> "$LEDGER"
+    ufw allow $port/tcp >/dev/null 2>&1
+    
+    sed -i '/"inbounds": \[/a \
+    {\
+      "port": '$port',\
+      "listen": "0.0.0.0",\
+      "protocol": "vless",\
+      "settings": {\
+        "clients": [\
+          {\
+            "id": "5783a3e7-e373-51cd-8642-c83782b807c5",\
+            "flow": "xtls-rprx-vision",\
+            "email": "default_reality_'$port'"\
+          }\
+          // #reality_'$port'\
+        ],\
+        "decryption": "none"\
+      },\
+      "streamSettings": {\
+        "network": "tcp",\
+        "security": "reality",\
+        "realitySettings": {\
+          "show": false,\
+          "dest": "'$sni':443",\
+          "xver": 0,\
+          "serverNames": [\
+            "'$sni'"\
+          ],\
+          "privateKey": "'$PBK'",\
+          "shortIds": [\
+            "'$SID'"\
+          ]\
+        }\
+      }\
+    },' "$CONFIG"
+fi
+
+# 3. PROCESS DATA FOR TRIAL
 rand=$(cat /proc/sys/kernel/random/uuid | cut -c1-4)
 user="TRIAL-$rand"
 masaaktif=1
+limit=1
+uuid=$(cat /proc/sys/kernel/random/uuid)
 exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
 exp_display="24 Hours (Trial)"
-limit=1
-sni="www.microsoft.com"
 
-uuid=$(cat /proc/sys/kernel/random/uuid)
-
-sed -i "s|// #reality|,\\
+# 4. INJECT USER (STRICTLY ISOLATED TO THEIR BUG'S PORT)
+sed -i "s|// #reality_$port|,\\
           { \"id\": \"$uuid\", \"flow\": \"xtls-rprx-vision\", \"email\": \"$user\" }\\
-          // #reality\\
+          // #reality_$port\\
           // #re $user $exp|g" $CONFIG
 
 mkdir -p /etc/xray/limit/vless
 echo "$limit" > /etc/xray/limit/vless/$user
 systemctl restart xray
 
-reality_link="vless://${uuid}@${domain}:443?security=reality&encryption=none&pbk=${PBK}&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=${sni}&sid=${SID}#${user}"
+# 5. GENERATE LINK
+reality_link="vless://${uuid}@${domain}:${port}?security=reality&encryption=none&pbk=${PBK}&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=${sni}&sid=${SID}#${user}"
 
+# 6. SHOW OUTPUT
 clear
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE}        TRIAL REALITY CREATED             ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e " Username    : ${GREEN}${user}${NC}"
+echo -e " Domain      : ${GREEN}${domain}${NC}"
+echo -e " Spoofed Bug : ${GREEN}${sni}${NC}"
+echo -e " Port        : ${GREEN}${port}${NC}"
+echo -e " User ID     : ${GREEN}${uuid}${NC}"
 echo -e " Expired On  : ${GREEN}${exp_display}${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${ORANGE} LINK REALITY:${NC}"

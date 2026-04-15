@@ -6,7 +6,7 @@
   },
   "inbounds": [
     {
-      "port": 443,
+      "port": 8443,
       "listen": "0.0.0.0",
       "protocol": "vless",
       "settings": {
@@ -16,7 +16,7 @@
             "flow": "xtls-rprx-vision",
             "email": "default_reality"
           }
-          // #reality
+          // #reality_8443
         ],
         "decryption": "none"
       },
@@ -25,12 +25,10 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "127.0.0.1:8444",
+          "dest": "REPLACE_REALITY_DEST:443",
           "xver": 0,
           "serverNames": [
-            "www.microsoft.com",
-            "beerleagueheroes.com",
-            "login.microsoftonline.com"
+            "REPLACE_REALITY_SNI"
           ],
           "privateKey": "REPLACE_PRIVATE_KEY",
           "shortIds": [
