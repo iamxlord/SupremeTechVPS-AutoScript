@@ -13,7 +13,7 @@ echo -e "${ORANGE}          RENEW SSH ACCOUNT               ${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 1. FIND SSH USERS
-awk -F: '$3 >= 1000 && $1 != "nobody" && ($NF == "/bin/false" || $NF == "/usr/sbin/nologin") {print $1}' /etc/passwd | sort > /tmp/ssh_users.txt
+awk -F: '$3 >= 1000 && $1 != "nobody" && ($NF == "/bin/false" || $NF == "/usr/sbin/nologin" || $NF == "/bin/true") {print $1}' /etc/passwd | sort > /tmp/ssh_users.txt
 
 if [ ! -s /tmp/ssh_users.txt ]; then
     echo -e "${RED}Error: No SSH clients found!${NC}"
@@ -61,7 +61,7 @@ fi
 
 # 5. RENEW LOGIC
 now=$(date +%Y-%m-%d)
-current_exp=$(chage -l "$user" | grep "Account expires" | cut -d: -f2 | xargs)
+current_exp=$(chage -l "$user" 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
 
 if [[ "$current_exp" == "never" ]] || [[ -z "$current_exp" ]]; then
     new_exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
@@ -78,8 +78,9 @@ fi
 
 new_exp_display=$(date -d "$new_exp" +"%b %d, %Y")
 
-# Apply to System User
+# Apply to System User (Extend Expiry AND Unlock Password)
 usermod -e "$new_exp" "$user"
+usermod -U "$user" 2>/dev/null
 rm -f /tmp/ssh_users.txt
 
 # 6. SUCCESS BANNER
