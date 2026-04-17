@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# RUTHLESS EXPIRY AUTOMATOR (Runs at 0:00 AM)
+# RUTHLESS EXPIRY AUTOMATOR (IRON SHIELD VERSION)
 # ==========================================
 
 (
@@ -15,8 +15,14 @@
 
     echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
 
-    # 1. SSH Expiry Check (SUSPEND, DO NOT DELETE)
-    awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
+    # 1. SSH Expiry Check
+    awk -F: '$3 >= 1000 && $1 != "nobody" && ($7 == "/bin/false" || $7 == "/usr/sbin/nologin" || $7 == "/bin/true") {print $1}' /etc/passwd | while read user; do
+        
+        # 🛡️ THE IRON SHIELD: Double Safety Hardcoded Blacklist
+        if [[ "$user" =~ ^(root|daemon|bin|sys|nobody|sshd|nginx|xray|stunnel4|dropbear|proxy|www-data)$ ]]; then
+            continue
+        fi
+        
         expiration=$(chage -l "$user" 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
         if [[ "$expiration" != "never" && -n "$expiration" ]]; then
             exp_date_sec=$(date -d "$expiration" +%s 2>/dev/null)
@@ -25,10 +31,23 @@
             if [[ -n "$exp_date_sec" && $today_sec -ge $exp_date_sec ]]; then
                 echo "Suspended Expired SSH: $user" >> /var/log/vpn-expiry.log
                 
-                # HUNT AND KILL: Terminate all active tunnels first
-                for pid in $(ps auxww | grep "$user" | awk '{print $2}'); do
-                    kill -9 $pid 2>/dev/null
+                # SURGICAL KILL (Targets ONLY the specific user's tunnels)
+                ssh_pids=$(ps auxww | grep -E "sshd: ${user}[@\[ ]" | grep -v grep | awk '{print $2}')
+                
+                drop_pids=""
+                for pid in $(pgrep -x dropbear 2>/dev/null); do
+                    if cat /proc/"$pid"/environ 2>/dev/null | tr '\0' '\n' | grep -qE "^(USER|LOGNAME)=${user}$"; then
+                        drop_pids="$drop_pids $pid"
+                    fi
                 done
+                drop_ps_pids=$(ps auxww | grep -E "dropbear: ${user}[@\[ ]" | grep -v grep | awk '{print $2}')
+                
+                ALL_PIDS=$(echo "$ssh_pids $drop_pids $drop_ps_pids" | xargs -n1 | sort -u)
+                
+                for pid in $ALL_PIDS; do
+                    kill -9 "$pid" 2>/dev/null
+                done
+                
                 pkill -u "$user" 2>/dev/null
                 killall -u "$user" 2>/dev/null
                 
@@ -38,7 +57,7 @@
         fi
     done
 
-    # 2. Xray Expiry Check (Must Delete to drop connection)
+    # 2. Xray Expiry Check
     if [ -f "$CONFIG" ]; then
         cp "$CONFIG" "$BACKUP"
 
