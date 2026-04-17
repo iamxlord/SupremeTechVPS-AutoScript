@@ -1,30 +1,54 @@
 #!/bin/bash
-# --- Multi-Login Killer ---
+LOG="/var/log/auth.log"
+[[ -e "/var/log/secure" ]] && LOG="/var/log/secure"
 
-# Loop through all system users with UID >= 1000
-awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
-    
-    # 1. Check if user has a limit file
-    if [[ -e "/etc/xray/limit/$user" ]]; then
-        MAX_LOGIN=$(cat /etc/xray/limit/$user)
-    else
-        MAX_LOGIN=2
+declare -A user_counts
+declare -A user_pids
+
+# 1. DROPBEAR Mapping
+cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt
+for PID in $(ps aux | grep -i dropbear | grep -v grep | awk '{print $2}'); do
+    USER=$(grep "dropbear\[$PID\]" /tmp/login-db.txt | awk '{print $10}' | sed "s/'//g" | tail -1)
+    if [[ -n "$USER" ]]; then
+        user_counts["$USER"]=$((user_counts["$USER"]+1))
+        user_pids["$USER"]="${user_pids[$USER]} $PID"
     fi
+done
 
-    # 2. Count Active SSH/Dropbear Connections
-    # 🚨 FIXED: Broader regex to catch all tunnel and session process states
-    PID_COUNT=$(ps -u "$user" 2>/dev/null | grep -E -c "sshd|dropbear")
+# 2. OPENSSH Mapping
+cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
+for PID in $(ps aux | grep -i sshd | grep -v grep | awk '{print $2}'); do
+    USER=$(grep "sshd\[$PID\]" /tmp/login-db.txt | awk '{print $9}' | tail -1)
+    if [[ -n "$USER" ]]; then
+        user_counts["$USER"]=$((user_counts["$USER"]+1))
+        user_pids["$USER"]="${user_pids[$USER]} $PID"
+    fi
+done
+
+# 3. Enforce Limits & Assasinate
+for USER in "${!user_counts[@]}"; do
+    if ! id "$USER" &>/dev/null || [[ $(id -u "$USER") -lt 1000 ]]; then continue; fi
+
+    limit=2
+    if [[ -f "/etc/xray/limit/$USER" ]]; then limit=$(cat "/etc/xray/limit/$USER"); fi
+    count=${user_counts[$USER]}
     
-    # 3. Enforcement
-    if [[ $PID_COUNT -gt $MAX_LOGIN ]]; then
-        date +"%Y-%m-%d %H:%M:%S : Kicked $user ($PID_COUNT/$MAX_LOGIN logins)" >> /var/log/autokill.log
-        killall -u "$user"
+    if [[ $count -gt $limit ]]; then
+        date +"%Y-%m-%d %H:%M:%S : Kicked $USER ($count/$limit logins)" >> /var/log/autokill.log
+        
+        # Kill exact PIDs holding the tunnel open
+        for PID in ${user_pids[$USER]}; do
+            kill -9 $PID 2>/dev/null
+        done
+        
+        killall -u "$USER" 2>/dev/null
         
         TG_TOKEN=$(cat /etc/xray/tg_token 2>/dev/null)
         TG_CHATID=$(cat /etc/xray/tg_chatid 2>/dev/null)
         if [[ -n "$TG_TOKEN" && -n "$TG_CHATID" ]]; then
-            MSG="🚨 *MULTI-LOGIN ALERT* 🚨%0A%0A👤 *User:* \`${user}\`%0A⚠️ *Logins:* ${PID_COUNT} / ${MAX_LOGIN}%0A🛑 *Action:* User connections terminated."
+            MSG="🚨 *MULTI-LOGIN ALERT* 🚨%0A%0A👤 *User:* \`${USER}\`%0A⚠️ *Logins:* ${count} / ${limit}%0A🛑 *Action:* User connections terminated."
             curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendMessage?chat_id=${TG_CHATID}&text=${MSG}&parse_mode=Markdown" > /dev/null 2>&1
         fi
     fi
 done
+rm -f /tmp/login-db.txt

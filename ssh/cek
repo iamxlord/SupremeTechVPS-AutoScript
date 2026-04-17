@@ -1,40 +1,49 @@
 #!/bin/bash
 clear
-# --- COLORS & FORMATTING ---
-RED='\033[0;31m'; NC='\033[0m'; GREEN='\033[0;32m'; ORANGE='\033[0;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+echo -e "${CYAN}┌──────────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}               CHECK MULTI-LOGIN (SSH)                ${NC}"
+echo -e "${CYAN}└──────────────────────────────────────────────────────┘${NC}"
+echo -e " Checking active SSH and Dropbear sessions...\n"
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${ORANGE}          CHECK ACTIVE USER LOGIN         ${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e " ${GREEN}Scanning for active SSH & Dropbear connections...${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e " USERNAME          PID       CONNECTION TYPE"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+LOG="/var/log/auth.log"
+[[ -e "/var/log/secure" ]] && LOG="/var/log/secure"
 
-rm -f /tmp/login_db.txt
-touch /tmp/login_db.txt
+declare -A user_counts
 
-awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
-    # 🚨 FIXED: Grab process IDs owned by the user reliably
-    PIDS=$(ps -u "$user" -o pid,command 2>/dev/null | grep -E "sshd|dropbear" | grep -v "grep" | awk '{print $1}')
+# 1. DROPBEAR Mapping
+cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt
+for PID in $(ps aux | grep -i dropbear | grep -v grep | awk '{print $2}'); do
+    USER=$(grep "dropbear\[$PID\]" /tmp/login-db.txt | awk '{print $10}' | sed "s/'//g" | tail -1)
+    if [[ -n "$USER" ]]; then user_counts["$USER"]=$((user_counts["$USER"]+1)); fi
+done
 
-    if [[ -n "$PIDS" ]]; then
-        for pid in $PIDS; do
-            # Since network sockets are owned by Root due to Privilege Separation,
-            # we categorize them based on the tunnel state.
-            echo -e " ${user} ${pid} Proxy/Tunnel" >> /tmp/login_db.txt
-        done
+# 2. OPENSSH Mapping
+cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
+for PID in $(ps aux | grep -i sshd | grep -v grep | awk '{print $2}'); do
+    USER=$(grep "sshd\[$PID\]" /tmp/login-db.txt | awk '{print $9}' | tail -1)
+    if [[ -n "$USER" ]]; then user_counts["$USER"]=$((user_counts["$USER"]+1)); fi
+done
+
+found=0
+for USER in "${!user_counts[@]}"; do
+    if ! id "$USER" &>/dev/null || [[ $(id -u "$USER") -lt 1000 ]]; then continue; fi
+
+    limit=2
+    if [[ -f "/etc/xray/limit/$USER" ]]; then limit=$(cat "/etc/xray/limit/$USER"); fi
+    count=${user_counts[$USER]}
+    
+    found=1
+    # PERFECT UI ALIGNMENT
+    if [[ $count -gt $limit ]]; then
+        printf " > ${RED}[WARNING]${NC} User: ${YELLOW}%-12s${NC} is online. Active Logins: ${RED}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
+    else
+        printf " > ${GREEN}[SAFE]${NC}    User: ${YELLOW}%-12s${NC} is online. Active Logins: ${GREEN}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
     fi
 done
 
-if [ -s /tmp/login_db.txt ]; then
-    cat /tmp/login_db.txt | awk '{printf " %-17s %-9s %-15s\n", $1, $2, $3}'
-else
-    echo -e " ${RED}No active users found.${NC}"
-fi
-
-rm -f /tmp/login_db.txt
-
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-read -n 1 -s -r -p "Press any key to back on menu"
+if [[ $found -eq 0 ]]; then echo -e " ${GREEN}No active sessions found. Server is idle.${NC}"; fi
+echo -e "\n${CYAN}└──────────────────────────────────────────────────────┘${NC}"
+rm -f /tmp/login-db.txt
+read -n 1 -s -r -p " Press ENTER to return..."
 menu-ssh.sh
