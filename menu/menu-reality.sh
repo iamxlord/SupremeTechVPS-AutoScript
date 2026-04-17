@@ -34,4 +34,3 @@ case $opt in
     0|00) menu ;;
     *) echo -e "${RED}Invalid Option${NC}"; sleep 1; menu-reality.sh ;;
 esac
-EOF

@@ -1,24 +1,22 @@
 #!/bin/bash
 clear
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
-echo -e "${CYAN}┌──────────────────────────────────────────────────────┐${NC}"
-echo -e "${YELLOW}               CHECK MULTI-LOGIN (SSH)                ${NC}"
-echo -e "${CYAN}└──────────────────────────────────────────────────────┘${NC}"
-echo -e " Checking active SSH and Dropbear sessions...\n"
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+echo -e "${CYAN}┌──────────────────────────────────────────────────┐${NC}"
+echo -e "${YELLOW}             CHECK MULTI-LOGIN (SSH)              ${NC}"
+echo -e "${CYAN}└──────────────────────────────────────────────────┘${NC}"
 
 LOG="/var/log/auth.log"
 [[ -e "/var/log/secure" ]] && LOG="/var/log/secure"
 
 declare -A user_counts
 
-# 1. DROPBEAR Mapping
+# Mapping Logic
 cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt
 for PID in $(ps aux | grep -i dropbear | grep -v grep | awk '{print $2}'); do
     USER=$(grep "dropbear\[$PID\]" /tmp/login-db.txt | awk '{print $10}' | sed "s/'//g" | tail -1)
     if [[ -n "$USER" ]]; then user_counts["$USER"]=$((user_counts["$USER"]+1)); fi
 done
 
-# 2. OPENSSH Mapping
 cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
 for PID in $(ps aux | grep -i sshd | grep -v grep | awk '{print $2}'); do
     USER=$(grep "sshd\[$PID\]" /tmp/login-db.txt | awk '{print $9}' | tail -1)
@@ -34,16 +32,15 @@ for USER in "${!user_counts[@]}"; do
     count=${user_counts[$USER]}
     
     found=1
-    # PERFECT UI ALIGNMENT
+    # COMPACT MOBILE-FRIENDLY UI
     if [[ $count -gt $limit ]]; then
-        printf " > ${RED}[WARNING]${NC} User: ${YELLOW}%-12s${NC} is online. Active Logins: ${RED}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
+        echo -e " ${RED}► [WARN]${NC} User: ${YELLOW}${USER}${NC} | Active: ${RED}${count}${NC}/${limit}"
     else
-        printf " > ${GREEN}[SAFE]${NC}    User: ${YELLOW}%-12s${NC} is online. Active Logins: ${GREEN}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
+        echo -e " ${GREEN}► [SAFE]${NC} User: ${YELLOW}${USER}${NC} | Active: ${GREEN}${count}${NC}/${limit}"
     fi
 done
 
 if [[ $found -eq 0 ]]; then echo -e " ${GREEN}No active sessions found. Server is idle.${NC}"; fi
-echo -e "\n${CYAN}└──────────────────────────────────────────────────────┘${NC}"
+echo -e "${CYAN}└──────────────────────────────────────────────────┘${NC}"
 rm -f /tmp/login-db.txt
 read -n 1 -s -r -p " Press ENTER to return..."
-menu-ssh.sh
