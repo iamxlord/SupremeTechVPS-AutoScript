@@ -1,7 +1,8 @@
 #!/bin/bash
-# --- Mr. X Universal Auto-Expiry & JSON Validator ---
+# ==========================================
+# RUTHLESS EXPIRY AUTOMATOR (Runs at 0:00 AM)
+# ==========================================
 
-# 🚨 THE FIX: Wrap the entire script in a File Lock to prevent Race Conditions
 (
     flock -x 200
     
@@ -9,24 +10,35 @@
     BACKUP="/tmp/config.json.bak"
     HY_CONFIG="/etc/hysteria/config.yaml"
     HY_EXP="/etc/hysteria/exp.txt"
+    
     today_sec=$(date -d "$(date +%Y-%m-%d)" +%s)
 
     echo "Running Auto-Expiry Check: $(date)" >> /var/log/vpn-expiry.log
 
-    # 1. SSH Expiry Check
+    # 1. SSH Expiry Check (SUSPEND, DO NOT DELETE)
     awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | while read user; do
-        expiration=$(chage -l $user 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
+        expiration=$(chage -l "$user" 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
         if [[ "$expiration" != "never" && -n "$expiration" ]]; then
             exp_date_sec=$(date -d "$expiration" +%s 2>/dev/null)
-            if [[ -n "$exp_date_sec" && $exp_date_sec -lt $today_sec ]]; then
-                echo "Deleted Expired SSH: $user" >> /var/log/vpn-expiry.log
-                userdel -f $user 2>/dev/null
-                rm -f /etc/xray/limit/$user 2>/dev/null
+            
+            # If Current Time is past OR EQUAL to Expiry Time
+            if [[ -n "$exp_date_sec" && $today_sec -ge $exp_date_sec ]]; then
+                echo "Suspended Expired SSH: $user" >> /var/log/vpn-expiry.log
+                
+                # HUNT AND KILL: Terminate all active tunnels first
+                for pid in $(ps auxww | grep "$user" | awk '{print $2}'); do
+                    kill -9 $pid 2>/dev/null
+                done
+                pkill -u "$user" 2>/dev/null
+                killall -u "$user" 2>/dev/null
+                
+                # Lock the account (Suspends password) without deleting!
+                usermod -L "$user" 2>/dev/null
             fi
         fi
     done
 
-    # 2. Xray Expiry Check 
+    # 2. Xray Expiry Check (Must Delete to drop connection)
     if [ -f "$CONFIG" ]; then
         cp "$CONFIG" "$BACKUP"
 
@@ -37,7 +49,7 @@
             
             if [[ -n "$exp" ]]; then
                 exp_sec=$(date -d "$exp" +%s 2>/dev/null)
-                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
+                if [[ -n "$exp_sec" && $today_sec -ge $exp_sec ]]; then
                     echo "Deleted Expired Xray [$tag]: $user" >> /var/log/vpn-expiry.log
                     sed -i "/\"email\": \"$user\"[ \",}]/d" "$CONFIG"
                     sed -i "/\/\/ $tag $user /d" "$CONFIG"
@@ -67,7 +79,7 @@
         while IFS=: read -r hy_user hy_exp; do
             if [[ -n "$hy_exp" ]]; then
                 exp_sec=$(date -d "$hy_exp" +%s 2>/dev/null)
-                if [[ -n "$exp_sec" && $exp_sec -lt $today_sec ]]; then
+                if [[ -n "$exp_sec" && $today_sec -ge $exp_sec ]]; then
                     echo "Deleted Expired Hysteria2: $hy_user" >> /var/log/vpn-expiry.log
                     jq "del(.auth.userpass[\"$hy_user\"])" "$HY_CONFIG" > /tmp/hy.json && mv /tmp/hy.json "$HY_CONFIG"
                     sed -i "/^$hy_user:/d" "$HY_EXP"
