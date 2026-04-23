@@ -7,7 +7,7 @@ import socket, threading, select, os, sys
 # Ports: 80 (Standard), 8080 (Alt-HTTP), 2082 (cPanel), 8443 (Squid SSL)
 # ======================================================================
 
-LISTENING_PORTS = [80, 8080, 2082, 8443]
+LISTENING_PORTS = [80, 8080, 2082]
 SSH_PORT = 109 
 RESP_FILE = '/etc/xray/proxy_resp.txt'
 
