@@ -2,48 +2,42 @@
 clear
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 echo -e "${CYAN}┌──────────────────────────────────────────────────────┐${NC}"
-echo -e "${YELLOW}               CHECK MULTI-LOGIN (SSH)                ${NC}"
+echo -e "${YELLOW}               CHECK ACTIVE USER LOGIN                ${NC}"
 echo -e "${CYAN}└──────────────────────────────────────────────────────┘${NC}"
-echo -e " Checking active SSH and Dropbear sessions...\n"
+printf " ${GREEN}%-15s %-10s %-12s %-15s${NC}\n" "USERNAME" "PID" "UPTIME" "CONNECTION"
+echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
 
 LOG="/var/log/auth.log"
 [[ -e "/var/log/secure" ]] && LOG="/var/log/secure"
 
-declare -A user_counts
-
-# 1. DROPBEAR Mapping
+found=0
+# 1. DROPBEAR
 cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt
 for PID in $(ps aux | grep -i dropbear | grep -v grep | awk '{print $2}'); do
     USER=$(grep "dropbear\[$PID\]" /tmp/login-db.txt | awk '{print $10}' | sed "s/'//g" | tail -1)
-    if [[ -n "$USER" ]]; then user_counts["$USER"]=$((user_counts["$USER"]+1)); fi
-done
-
-# 2. OPENSSH Mapping
-cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
-for PID in $(ps aux | grep -i sshd | grep -v grep | awk '{print $2}'); do
-    USER=$(grep "sshd\[$PID\]" /tmp/login-db.txt | awk '{print $9}' | tail -1)
-    if [[ -n "$USER" ]]; then user_counts["$USER"]=$((user_counts["$USER"]+1)); fi
-done
-
-found=0
-for USER in "${!user_counts[@]}"; do
-    if ! id "$USER" &>/dev/null || [[ $(id -u "$USER") -lt 1000 ]]; then continue; fi
-
-    limit=2
-    if [[ -f "/etc/xray/limit/$USER" ]]; then limit=$(cat "/etc/xray/limit/$USER"); fi
-    count=${user_counts[$USER]}
-    
-    found=1
-    # PERFECT UI ALIGNMENT
-    if [[ $count -gt $limit ]]; then
-        printf " > ${RED}[WARNING]${NC} User: ${YELLOW}%-12s${NC} is online. Active Logins: ${RED}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
-    else
-        printf " > ${GREEN}[SAFE]${NC}    User: ${YELLOW}%-12s${NC} is online. Active Logins: ${GREEN}%-2s${NC} | Limit: ${GREEN}%-2s${NC}\n" "$USER" "$count" "$limit"
+    if [[ -n "$USER" ]]; then
+        # Grab exact elapsed time from CPU
+        UPTIME=$(ps -p $PID -o etime= | tr -d ' ')
+        [[ -z "$UPTIME" ]] && UPTIME="00:00"
+        printf " %-15s %-10s %-12s %-15s\n" "$USER" "$PID" "$UPTIME" "Dropbear"
+        found=1
     fi
 done
 
-if [[ $found -eq 0 ]]; then echo -e " ${GREEN}No active sessions found. Server is idle.${NC}"; fi
-echo -e "\n${CYAN}└──────────────────────────────────────────────────────┘${NC}"
+# 2. OPENSSH
+cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
+for PID in $(ps aux | grep -i sshd | grep -v grep | awk '{print $2}'); do
+    USER=$(grep "sshd\[$PID\]" /tmp/login-db.txt | awk '{print $9}' | tail -1)
+    if [[ -n "$USER" ]]; then
+        UPTIME=$(ps -p $PID -o etime= | tr -d ' ')
+        [[ -z "$UPTIME" ]] && UPTIME="00:00"
+        printf " %-15s %-10s %-12s %-15s\n" "$USER" "$PID" "$UPTIME" "OpenSSH/WS"
+        found=1
+    fi
+done
+
+if [[ $found -eq 0 ]]; then echo -e " ${RED}No active users found.${NC}"; fi
+echo -e "${CYAN}└──────────────────────────────────────────────────────┘${NC}"
 rm -f /tmp/login-db.txt
 read -n 1 -s -r -p " Press ENTER to return..."
 menu-ssh.sh

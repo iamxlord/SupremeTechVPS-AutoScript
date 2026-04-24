@@ -44,3 +44,4 @@ if [[ $found -eq 0 ]]; then echo -e " ${GREEN}No active sessions found. Server i
 echo -e "${CYAN}└──────────────────────────────────────────────────┘${NC}"
 rm -f /tmp/login-db.txt
 read -n 1 -s -r -p " Press ENTER to return..."
+menu-ssh.sh
